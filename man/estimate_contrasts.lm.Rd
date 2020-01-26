@@ -31,7 +31,7 @@
 
 \item{length}{Length of the spread numeric variables.}
 
-\item{standardize}{If \code{TRUE}, add standardized differences (Cohen's d) or coefficients.}
+\item{standardize}{If \code{TRUE}, adds standardized differences or coefficients.}
 
 \item{standardize_robust}{Robust standardization through \code{MAD} (Median Absolute Deviation, a robust estimate of SD) instead of regular \code{SD}.}
 
@@ -59,12 +59,11 @@ estimate_contrasts(model, fixed = "Petal.Width")
 estimate_contrasts(model, modulate = "Petal.Width", length = 4)
 
 
-library(lme4)
+if (require("lme4")) {
+  data <- iris
+  data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
 
-data <- iris
-data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
-
-model <- lmer(Sepal.Width ~ Species + (1 | Petal.Length_factor), data = data)
-estimate_contrasts(model)
-
+  model <- lmer(Sepal.Width ~ Species + (1 | Petal.Length_factor), data = data)
+  estimate_contrasts(model)
+}
 }
