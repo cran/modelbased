@@ -74,15 +74,13 @@ predict_wrapper.polr <- function(model, newdata = NULL, ...) {
 
 
 #' @keywords internal
-predict_wrapper.merMod <- function(model, newdata = NULL, ci = NULL, re.form = NULL, transform = "response", ...) {
-  if (is.na(re.form)) {
-    if (!is.null(ci)) {
-      warning("CI cannot be computed for mixed models when no random effects present in data. Provide some data with random effects, or set `ci = NULL`.")
-      ci <- NULL
-    }
-  }
-
-
+predict_wrapper.merMod <- function(model, newdata = NULL, ci = NULL, re.form = NULL, transform = "response", interval = "confidence", ...) {
+  # if (!is.null(re.form) && is.na(re.form)) {
+  #   if (!is.null(ci)) {
+  #     warning("CI cannot be computed for mixed models when no random effects present in data. Provide some data with random effects, or set `ci = NULL`.")
+  #     ci <- NULL
+  #   }
+  # }
 
   if (is.null(ci)) {
     # type <- ifelse(transform == "response", TRUE, FALSE)
@@ -107,14 +105,61 @@ predict_wrapper.merMod <- function(model, newdata = NULL, ci = NULL, re.form = N
       type <- "linear.prediction"
     }
 
-    prediction <- as.data.frame(
-      merTools::predictInterval(model,
-        which = "fixed",
-        newdata = newdata,
-        type = type,
-        stat = "median",
-        level = ci
-      )
+    refgrid <- emmeans::ref_grid(model, at=as.list(newdata), data=newdata)
+    prediction <- as.data.frame(predict(refgrid, transform=transform, ci = ci, interval = interval))
+
+    # Clean
+    prediction[names(newdata)] <- NULL
+    prediction$Predicted <- prediction[, 1]
+    prediction$CI_low <- prediction[, grepl("lower.|LCL", names(prediction))]
+    prediction$CI_high <- prediction[, grepl("upper.|UCL", names(prediction))]
+    prediction[!names(prediction) %in% c("Predicted", "CI_low", "CI_high")] <- NULL
+
+    # prediction <- as.data.frame(
+    #   merTools::predictInterval(model,
+    #     which = "fixed",
+    #     newdata = newdata,
+    #     type = type,
+    #     stat = "median",
+    #     level = ci
+    #   )
+    # )
+  }
+  prediction
+}
+
+
+
+#' @importFrom insight link_inverse
+#' @importFrom stats predict
+#' @keywords internal
+predict_wrapper.glmmTMB <- function(model, newdata = NULL, ci = NULL, re.form = NULL, transform = "response", ...) {
+  if (is.null(ci)) {
+    prediction <- data.frame(
+      Predicted = stats::predict(model,
+                                 newdata = newdata,
+                                 re.form = re.form,
+                                 type = transform
+      ),
+      CI_low = NA,
+      CI_high = NA
+    )
+  } else {
+    pr <- stats::predict(model,
+                         newdata = newdata,
+                         re.form = re.form,
+                         type = transform,
+                         se.fit = TRUE)
+
+    ## TODO check if we need linkinverse
+    if (transform != "zprob" && transform != "disp") {
+      linkinverse <- insight::link_inverse(model)
+    }
+
+    prediction <- data.frame(
+      Predicted = pr$fit,
+      CI_low = pr$fit - (pr$se.fit * stats::qnorm((1 + ci) / 2)),
+      CI_high = pr$fit + (pr$se.fit * stats::qnorm((1 + ci) / 2))
     )
   }
   prediction
