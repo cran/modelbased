@@ -1,49 +1,46 @@
-if (require("testthat") && require("modelbased") && require("rstanarm") && require("insight") && require("lme4")) {
+if (require("testthat") && require("modelbased") && require("logspline") && require("rstanarm") && require("insight") && require("lme4")) {
   test_that("estimate_contrasts", {
 
 
     # Bayesian ----------------------------------------------------------------
 
+    model <- suppressWarnings(rstanarm::stan_glm(mpg ~ wt + poly(cyl, 2), data = mtcars, iter = 200, refresh = 0))
+    testthat::expect_error(estimate_contrasts(model))
 
-    if (require("rstanarm")) {
-      testthat::expect_error(estimate_contrasts(rstanarm::stan_glm(mpg ~ wt + poly(cyl, 2), data = mtcars, iter=200, refresh=0)))
+    data <- iris
+    data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
 
-      data <- iris
-      data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
+    model <- suppressWarnings(rstanarm::stan_glm(Sepal.Width ~ Species * Petal.Length_factor, data = data, refresh = 0, iter = 200, chains = 2))
+    estim <- estimate_contrasts(model)
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(15, 8))
+    estim <- estimate_contrasts(model, fixed = "Petal.Length_factor")
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 9))
 
-      model <- rstanarm::stan_glm(Sepal.Width ~ Species * Petal.Length_factor, data = data, refresh = 0, iter = 200, chains = 2)
-      estim <- estimate_contrasts(model)
-      testthat::expect_equal(c(nrow(estim), ncol(estim)), c(15, 8))
-      estim <- estimate_contrasts(model, fixed = "Petal.Length_factor")
-      testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 9))
+    model <- suppressWarnings(rstanarm::stan_glm(Sepal.Width ~ Species * Petal.Width, data = iris, refresh = 0, iter = 200, chains = 2))
+    estim <- estimate_contrasts(model)
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 8))
+    estim <- estimate_contrasts(model, fixed = "Petal.Width")
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 9))
+    estim <- estimate_contrasts(model, modulate = "Petal.Width", length = 4)
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(12, 9))
 
-      model <- rstanarm::stan_glm(Sepal.Width ~ Species * Petal.Width, data = iris, refresh = 0, iter = 200, chains = 2)
-      estim <- estimate_contrasts(model)
-      testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 8))
-      estim <- estimate_contrasts(model, fixed = "Petal.Width")
-      testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 9))
-      estim <- estimate_contrasts(model, modulate = "Petal.Width", length = 4)
-      testthat::expect_equal(c(nrow(estim), ncol(estim)), c(12, 9))
+    # GLM
+    df <- iris
+    df$y <- as.numeric(as.factor(ifelse(df$Sepal.Width > 3, "A", "B"))) - 1
+    model <- suppressWarnings(rstanarm::stan_glm(y ~ Species,
+      family = "binomial", data = df, refresh = 0,
+      prior = rstanarm::normal(scale = 0.5)
+    ))
 
-      # GLM
-      df <- iris
-      df$y <- as.numeric(as.factor(ifelse(df$Sepal.Width > 3, "A", "B"))) - 1
-      model <- rstanarm::stan_glm(y ~ Species,
-        family = "binomial", data = df, refresh = 0,
-        prior = rstanarm::normal(scale = 0.5)
-      )
+    estim <- estimate_contrasts(model)
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 8))
+    estim <- estimate_contrasts(model, transform = "response")
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 7))
 
-      estim <- estimate_contrasts(model)
-      testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 8))
-      estim <- estimate_contrasts(model, transform = "response")
-      testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 7))
-
-      library(logspline)
-      estim <- estimate_contrasts(model, test = "bf")
-      testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 7))
-      estim <- estimate_contrasts(model, transform = "response", test = "bf")
-      testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 6))
-    }
+    estim <- estimate_contrasts(model, test = "bf")
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 7))
+    estim <- estimate_contrasts(model, transform = "response", test = "bf")
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 6))
 
 
 
@@ -142,11 +139,35 @@ if (require("testthat") && require("modelbased") && require("rstanarm") && requi
     testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 9))
 
     # GLM - poisson
-    data <- data.frame(counts = c(18,17,15,20,10,20,25,13,12),
-                       treatment = gl(3,3))
-    model <- glm(counts ~ treatment, data=data, family = poisson())
+    data <- data.frame(
+      counts = c(18, 17, 15, 20, 10, 20, 25, 13, 12),
+      treatment = gl(3, 3)
+    )
+    model <- glm(counts ~ treatment, data = data, family = poisson())
 
-    estim <- estimate_contrasts(model, transform= 'response')
+    estim <- estimate_contrasts(model, transform = "response")
     testthat::expect_equal(c(nrow(estim), ncol(estim)), c(3, 9))
   })
 }
+
+
+testthat::test_that("estimate_contrasts - p.adjust", {
+  model <- lm(Petal.Width ~ Species, data = iris)
+
+  p_none <- modelbased::estimate_contrasts(model, adjust  = "none")
+  p_tuk <- modelbased::estimate_contrasts(model, adjust  = "tukey")
+
+  testthat::expect_true(any(as.data.frame(p_none) != as.data.frame(p_tuk)))
+})
+
+testthat::test_that("estimate_contrasts - dfs", {
+  data <- iris
+  data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
+  model <- lme4::lmer(Sepal.Width ~ Species + (1 | Petal.Length_factor), data = data)
+
+  estim1 <- modelbased::estimate_contrasts(model, lmer.df = "satterthwaite")
+  estim2 <- modelbased::estimate_contrasts(model, lmer.df = "kenward-roger")
+
+  # Somehow this works when I run it but fails in checks
+  # testthat::expect_true(any(as.data.frame(estim1) != as.data.frame(estim2)))
+})

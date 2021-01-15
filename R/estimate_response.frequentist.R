@@ -16,11 +16,11 @@
 #' }
 #' @return A dataframe of predicted values.
 #' @export
-estimate_response.glm <- function(model, data = NULL, transform = "response", random = TRUE, length = 25, preserve_range = TRUE, predict = "response", ci = 0.95, ...) {
-  args <- .estimate_response_init(model, data, transform, random, length, preserve_range, predict, ...)
+estimate_response.glm <- function(model, data = NULL, transform = "response", include_smooth = TRUE, include_random = TRUE, length = 25, preserve_range = TRUE, predict = "response", ci = 0.95, ...) {
+  args <- .estimate_response_init(model, data, transform, include_smooth, include_random, length, preserve_range, predict, ...)
 
   # Avoid failure in predict()
-  if(is.null(ci)){
+  if (is.null(ci)) {
     ci <- 0
   }
 
@@ -39,14 +39,15 @@ estimate_response.glm <- function(model, data = NULL, transform = "response", ra
   names(prediction)[names(prediction) == "upr"] <- "CI_high"
 
   # Restore ci=NULL
-  if(ci == 0){
+  if (ci == 0) {
     prediction$CI_low <- prediction$CI_high <- ci <- NULL
   }
 
-
-
   # Add predictors
   out <- cbind(args$data, prediction)
+
+  # Drop smooth column if needed
+  if (include_smooth == FALSE) out <- out[!names(out) %in% insight::clean_names(insight::find_smooth(model, flatten = TRUE))]
 
   # Restore factor levels
   out <- .restore_factor_levels(out, insight::get_data(model))
@@ -57,7 +58,7 @@ estimate_response.glm <- function(model, data = NULL, transform = "response", ra
       predict = predict,
       ci = ci,
       transform = transform,
-      random = random,
+      random = include_random,
       response = insight::find_response(model)
     )
   )
@@ -72,8 +73,8 @@ estimate_response.glm <- function(model, data = NULL, transform = "response", ra
 
 #' @rdname estimate_response.glm
 #' @export
-estimate_link.glm <- function(model, data = "grid", transform = "response", random = FALSE, length = 25, preserve_range = TRUE, predict = "link", ci = 0.95, ...) {
-  estimate_response(model, data = data, transform = transform, random = random, length = length, preserve_range = preserve_range, predict = predict, ci = ci, ...)
+estimate_link.glm <- function(model, data = "grid", transform = "response", include_smooth = TRUE, include_random = FALSE, length = 25, preserve_range = TRUE, predict = "link", ci = 0.95, ...) {
+  estimate_response(model, data = data, transform = transform, include_smooth = include_smooth, include_random = include_random, length = length, preserve_range = preserve_range, predict = predict, ci = ci, ...)
 }
 
 
@@ -101,3 +102,9 @@ estimate_link.polr <- estimate_link.glm
 estimate_response.gamm <- estimate_response.glm
 #' @export
 estimate_link.gamm <- estimate_link.glm
+
+# gamm4
+#' @export
+estimate_response.list <- estimate_response.glm
+#' @export
+estimate_link.list <- estimate_link.glm

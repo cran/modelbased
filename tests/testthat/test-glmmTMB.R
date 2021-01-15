@@ -3,19 +3,19 @@ if (require("testthat") && require("modelbased") && require("glmmTMB") && requir
   # testthat::skip_on_cran()
 
   data <- glmmTMB::Salamanders
-  model <- glmmTMB::glmmTMB(
+  model <- suppressWarnings(glmmTMB::glmmTMB(
     count ~ mined + (1 | site),
     ziformula = ~mined,
     family = poisson,
     data = data
-  )
+  ))
 
-  model2 <- glmmTMB::glmmTMB(
+  model2 <- suppressWarnings(glmmTMB::glmmTMB(
     count ~ cover + mined + (1 | site),
     ziformula = ~ cover + mined,
     family = glmmTMB::truncated_poisson,
     data = data
-  )
+  ))
 
   test_that("estimate_means - glmmTMB", {
     estim <- estimate_means(model)
@@ -45,6 +45,11 @@ if (require("testthat") && require("modelbased") && require("glmmTMB") && requir
     testthat::expect_equal(estim$Coefficient, estim2$cover.trend, tolerance = 1e-2)
   })
 
+  test_that("estimate_smooth - glmmTMB", {
+    model <- suppressWarnings(glmmTMB::glmmTMB(Sepal.Width ~ poly(Petal.Length, 2) + (1 | Species), data = iris))
+    estim <- estimate_smooth(model, smooth = "Petal.Length")
+  })
+
   test_that("estimate_response - glmmTMB", {
     estim <- estimate_response(model2)
     testthat::expect_equal(c(nrow(estim), ncol(estim)), c(nrow(data), 6))
@@ -52,6 +57,11 @@ if (require("testthat") && require("modelbased") && require("glmmTMB") && requir
 
   test_that("estimate_link - glmmTMB", {
     estim <- estimate_link(model2)
-    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(35, 6))
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(35, 5))
+  })
+
+  test_that("estimate_response - glmmTMB", {
+    estim <- estimate_response(model2)
+    testthat::expect_equal(c(nrow(estim), ncol(estim)), c(644, 6))
   })
 }
