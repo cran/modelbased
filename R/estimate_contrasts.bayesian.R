@@ -7,18 +7,38 @@
 #' }
 #'
 #' @param model A statistical model.
-#' @param levels A character vector or formula specifying the names of the predictors over which to estimate means or contrasts.
-#' @param fixed A character vector indicating the names of the predictors to be "fixed" (i.e., maintained), so that the estimation is made at these values.
-#' @param modulate A character vector indicating the names of a numeric variable along which the means or the contrasts will be estimated. Adjust its length using \code{length}.
-#' @param transform Can be \code{"none"} (default for contrasts), \code{"response"} (default for means), \code{"mu"}, \code{"unlink"}, \code{"log"}. \code{"none"}  will leave the values on scale of the linear predictors. \code{"response"} will transform them on scale of the response variable. Thus for a logistic model, \code{"none"} will give estimations expressed in log-odds (probabilities on logit scale) and \code{"response"} in terms of probabilities.
+#' @param levels A character vector or formula specifying the names of the
+#'   predictors over which to estimate means or contrasts.
+#' @param fixed A character vector indicating the names of the predictors to be
+#'   "fixed" (i.e., maintained), so that the estimation is made at these values.
+#' @param modulate A character vector indicating the names of a numeric variable
+#'   along which the means or the contrasts will be estimated. Adjust its length
+#'   using \code{length}.
+#' @param transform Can be \code{"none"} (default for contrasts),
+#'   \code{"response"} (default for means), \code{"mu"}, \code{"unlink"},
+#'   \code{"log"}. \code{"none"}  will leave the values on scale of the linear
+#'   predictors. \code{"response"} will transform them on scale of the response
+#'   variable. Thus for a logistic model, \code{"none"} will give estimations
+#'   expressed in log-odds (probabilities on logit scale) and \code{"response"}
+#'   in terms of probabilities.
 #' @param length Length of the spread numeric variables.
-#' @param standardize If \code{TRUE}, adds standardized differences or coefficients.
-#' @param standardize_robust Robust standardization through \code{MAD} (Median Absolute Deviation, a robust estimate of SD) instead of regular \code{SD}.
+#' @param standardize If \code{TRUE}, adds standardized differences or
+#'   coefficients.
+#' @param standardize_robust Robust standardization through \code{MAD} (Median
+#'   Absolute Deviation, a robust estimate of SD) instead of regular \code{SD}.
 #' @param ... Arguments passed to or from other methods.
 #'
 #' @return A data frame of estimated contrasts.
 #' @export
-estimate_contrasts <- function(model, levels = NULL, fixed = NULL, modulate = NULL, transform = "none", length = 10, standardize = TRUE, standardize_robust = FALSE, ...) {
+estimate_contrasts <- function(model,
+                               levels = NULL,
+                               fixed = NULL,
+                               modulate = NULL,
+                               transform = "none",
+                               length = 10,
+                               standardize = TRUE,
+                               standardize_robust = FALSE,
+                               ...) {
   UseMethod("estimate_contrasts")
 }
 
@@ -70,9 +90,33 @@ estimate_contrasts <- function(model, levels = NULL, fixed = NULL, modulate = NU
 #' @importFrom bayestestR describe_posterior
 #' @importFrom insight find_response
 #' @export
-estimate_contrasts.stanreg <- function(model, levels = NULL, fixed = NULL, modulate = NULL, transform = "none", length = 10, standardize = TRUE, standardize_robust = FALSE, centrality = "median", ci = 0.95, ci_method = "hdi", test = c("pd", "rope"), rope_range = "default", rope_ci = 1, ...) {
+estimate_contrasts.stanreg <- function(model,
+                                       levels = NULL,
+                                       fixed = NULL,
+                                       modulate = NULL,
+                                       transform = "none",
+                                       length = 10,
+                                       standardize = TRUE,
+                                       standardize_robust = FALSE,
+                                       centrality = "median",
+                                       ci = 0.95,
+                                       ci_method = "hdi",
+                                       test = c("pd", "rope"),
+                                       rope_range = "default",
+                                       rope_ci = 1,
+                                       ...) {
   args <- .guess_arguments(model, levels = levels, fixed = fixed, modulate = modulate)
-  estimated <- .emmeans_wrapper(model, levels = args$levels, fixed = args$fixed, modulate = args$modulate, transform = transform, length = length, ...)
+
+  estimated <- .emmeans_wrapper(
+    model,
+    levels = args$levels,
+    fixed = args$fixed,
+    modulate = args$modulate,
+    transform = transform,
+    length = length,
+    ...
+  )
+
   posteriors <- emmeans::contrast(estimated,
     by = c(.clean_argument(args$fixed), .clean_argument(args$modulate)),
     method = "pairwise",
@@ -80,12 +124,19 @@ estimate_contrasts.stanreg <- function(model, levels = NULL, fixed = NULL, modul
   )
 
   # Summary
-  contrasts <- .summarize_posteriors(posteriors,
-    ci = ci, ci_method = ci_method,
+  contrasts <- .summarize_posteriors(
+    posteriors,
+    ci = ci,
+    ci_method = ci_method,
     centrality = centrality,
-    test = test, rope_range = rope_range, rope_ci = rope_ci, bf_prior = model
+    test = test,
+    rope_range = rope_range,
+    rope_ci = rope_ci,
+    bf_prior = model
   )
+
   contrasts <- .clean_names_bayesian(contrasts, model, transform, type = "contrast")
+
   # Standardized differences
   if (standardize & transform != "response") {
     contrasts <- cbind(contrasts, .standardize_contrasts(contrasts, model, robust = standardize_robust))

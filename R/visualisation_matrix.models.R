@@ -2,7 +2,20 @@
 
 
 #' @export
-visualisation_matrix.glm <- function(x, target = "all", length = 10, factors = "reference", numerics = "mean", preserve_range = FALSE, standardize = FALSE, standardize_robust = FALSE, reference = x, na.rm = TRUE, include_smooth = TRUE, include_random = FALSE, include_response = FALSE, ...) {
+visualisation_matrix.glm <- function(x,
+                                     target = "all",
+                                     length = 10,
+                                     factors = "reference",
+                                     numerics = "mean",
+                                     preserve_range = FALSE,
+                                     standardize = FALSE,
+                                     standardize_robust = FALSE,
+                                     reference = x,
+                                     na.rm = TRUE,
+                                     include_smooth = TRUE,
+                                     include_random = FALSE,
+                                     include_response = FALSE,
+                                     ...) {
   data <- insight::get_data(x)[insight::find_variables(x, "all", flatten = TRUE)]
 
   if (include_response == FALSE) {
@@ -14,14 +27,26 @@ visualisation_matrix.glm <- function(x, target = "all", length = 10, factors = "
   }
 
   if (all(target == "all")) target <- names(data)
-  if (include_smooth == FALSE | include_smooth == "fixed") {
+  if (include_smooth == FALSE || include_smooth == "fixed") {
     s <- insight::find_smooth(x, flatten = TRUE)
-    if(!is.null(s)){
+    if (!is.null(s)) {
       target <- names(data)[!names(data) %in% insight::clean_names(s)]
     }
   }
 
-  data <- visualisation_matrix(data, target = target, length = length, factors = factors, numerics = numerics, preserve_range = preserve_range, standardize = standardize, standardize_robust = standardize_robust, reference = data, na.rm = na.rm, ...)
+  data <- visualisation_matrix(
+    data,
+    target = target,
+    length = length,
+    factors = factors,
+    numerics = numerics,
+    preserve_range = preserve_range,
+    standardize = standardize,
+    standardize_robust = standardize_robust,
+    reference = data,
+    na.rm = na.rm,
+    ...
+  )
 
   if (include_smooth == FALSE) {
     data <- data[!names(data) %in% insight::clean_names(insight::find_smooth(x, flatten = TRUE))]
@@ -88,10 +113,34 @@ visualisation_matrix.list <- visualisation_matrix.glm # list is gamm4
 
 
 #' @export
-visualisation_matrix.visualisation_matrix <- function(x, target = "all", length = 10, factors = "reference", numerics = "mean", preserve_range = FALSE, standardize = FALSE, standardize_robust = FALSE, reference = attributes(x)$reference, na.rm = TRUE, ...) {
-  grid <- visualisation_matrix(as.data.frame(x), target = target, length = length, factors = factors, numerics = numerics, preserve_range = preserve_range, standardize = standardize, standardize_robust = standardize_robust, reference = reference, na.rm = na.rm, ...)
+visualisation_matrix.visualisation_matrix <- function(x,
+                                                      target = "all",
+                                                      length = 10,
+                                                      factors = "reference",
+                                                      numerics = "mean",
+                                                      preserve_range = FALSE,
+                                                      standardize = FALSE,
+                                                      standardize_robust = FALSE,
+                                                      reference = attributes(x)$reference,
+                                                      na.rm = TRUE,
+                                                      ...) {
+  grid <- visualisation_matrix(
+    as.data.frame(x),
+    target = target,
+    length = length,
+    factors = factors,
+    numerics = numerics,
+    preserve_range = preserve_range,
+    standardize = standardize,
+    standardize_robust = standardize_robust,
+    reference = reference,
+    na.rm = na.rm,
+    ...
+  )
+
   if ("model" %in% names(attributes(x))) {
     attr(grid, "model") <- attributes(x)$model
   }
+
   grid
 }

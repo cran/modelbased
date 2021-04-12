@@ -2,8 +2,11 @@
 #'
 #'
 #' @inheritParams estimate_contrasts.stanreg
-#' @inheritParams estimate_means.lm
-#' @param adjust The p-values adjustment method for multi-comparisons. Can be one of "holm" (default), "tukey", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr" or "none". See the p-value adjustment section in the \code{emmeans::test} documentation.
+#' @inheritParams estimate_means
+#' @param adjust The p-values adjustment method for multi-comparisons. Can be
+#'   one of "holm" (default), "tukey", "hochberg", "hommel", "bonferroni", "BH",
+#'   "BY", "fdr" or "none". See the p-value adjustment section in the
+#'   \code{emmeans::test} documentation.
 #'
 #' @examples
 #' library(modelbased)
@@ -30,10 +33,29 @@
 #' @importFrom stats mad median sd setNames confint
 #' @importFrom bayestestR describe_posterior
 #' @export
-estimate_contrasts.lm <- function(model, levels = NULL, fixed = NULL, modulate = NULL, transform = "none", length = 10, standardize = TRUE, standardize_robust = FALSE, ci = 0.95, adjust = "holm", ...) {
+estimate_contrasts.lm <- function(model,
+                                  levels = NULL,
+                                  fixed = NULL,
+                                  modulate = NULL,
+                                  transform = "none",
+                                  length = 10,
+                                  standardize = TRUE,
+                                  standardize_robust = FALSE,
+                                  ci = 0.95,
+                                  adjust = "holm",
+                                  ...) {
   args <- .guess_arguments(model, levels = levels, fixed = fixed, modulate = modulate)
 
-  estimated <- .emmeans_wrapper(model, levels = args$levels, fixed = args$fixed, modulate = args$modulate, transform = transform, length = length, ...)
+  estimated <- .emmeans_wrapper(
+    model,
+    levels = args$levels,
+    fixed = args$fixed,
+    modulate = args$modulate,
+    transform = transform,
+    length = length,
+    ...
+  )
+
   contrasts <- emmeans::contrast(estimated,
     by = c(.clean_argument(args$fixed), .clean_argument(args$modulate)),
     method = "pairwise",
