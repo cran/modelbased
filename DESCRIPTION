@@ -1,7 +1,7 @@
 Type: Package
 Package: modelbased
 Title: Estimation of Model-Based Predictions, Contrasts and Means
-Version: 0.7.0
+Version: 0.7.1
 Authors@R: 
     c(person(given = "Dominique",
              family = "Makowski",
@@ -24,28 +24,28 @@ Authors@R:
              email = "patilindrajeet.science@gmail.com",
              comment = c(ORCID = "0000-0003-1995-6531", Twitter = "@patilindrajeets")))
 Maintainer: Dominique Makowski <dom.makowski@gmail.com>
-Description: Implements a general interface for model-based
-    estimations for a wide variety of models (see support list of insight;
-    Lüdecke, Waggoner & Makowski (2019) <doi:10.21105/joss.01412>), used
-    in the computation of marginal means, contrast analysis and
-    predictions.
+Description: Implements a general interface for model-based estimations
+    for a wide variety of models (see list of supported models using the
+    function 'insight::supported_models()'), used in the computation of
+    marginal means, contrast analysis and predictions.
 License: GPL-3
 URL: https://easystats.github.io/modelbased/
 BugReports: https://github.com/easystats/modelbased/issues
-Imports: graphics, stats, utils, bayestestR (>= 0.10.0), effectsize (>=
-        0.4.5), insight (>= 0.14.1), parameters (>= 0.14.0),
-        performance
+Depends: R (>= 3.4)
+Imports: bayestestR (>= 0.11.5), effectsize (>= 0.5.0), insight (>=
+        0.14.5), datawizard (>= 0.2.1), parameters (>= 0.15.0),
+        performance, graphics, stats, utils
 Suggests: brms, coda, correlation, dplyr, emmeans (>= 1.5.3), gamm4,
         gganimate, ggplot2, glmmTMB, knitr, lme4, logspline, MASS,
-        Matrix, merTools, mgcv, rmarkdown, rstanarm, rtdists, see,
-        testthat, spelling
+        Matrix, merTools, mgcv, patchwork, rmarkdown, rstanarm,
+        rtdists, see (>= 0.6.5), spelling, testthat
 Encoding: UTF-8
-RoxygenNote: 7.1.1.9001
+Language: en-US
+RoxygenNote: 7.1.2
 Config/testthat/edition: 3
 Config/testthat/parallel: true
-Language: en-US
 NeedsCompilation: no
-Packaged: 2021-06-06 05:25:16 UTC; user
+Packaged: 2022-01-12 07:34:13 UTC; domma
 Author: Dominique Makowski [aut, cre] (<https://orcid.org/0000-0001-5375-9967>,
     @Dom_Makowski),
   Daniel Lüdecke [aut] (<https://orcid.org/0000-0002-8895-3206>,
@@ -55,4 +55,4 @@ Author: Dominique Makowski [aut, cre] (<https://orcid.org/0000-0001-5375-9967>,
   Indrajeet Patil [aut] (<https://orcid.org/0000-0003-1995-6531>,
     @patilindrajeets)
 Repository: CRAN
-Date/Publication: 2021-06-06 05:40:02 UTC
+Date/Publication: 2022-01-13 10:52:42 UTC

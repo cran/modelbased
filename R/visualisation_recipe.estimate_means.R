@@ -1,4 +1,4 @@
-#' @rdname visualisation_recipe
+#' @rdname visualisation_recipe.estimate_predicted
 #'
 #' @examples
 #' # ==============================================
@@ -11,6 +11,10 @@
 #'   layers <- visualisation_recipe(x)
 #'   layers
 #'   plot(layers)
+#'
+#' }
+#' \donttest{
+#' if (require("ggplot2")) {
 #'
 #'   # Customize aesthetics
 #'   layers <- visualisation_recipe(x,
@@ -28,20 +32,21 @@
 #'   data$new_factor <- as.factor(rep(c("A", "B"), length.out = nrow(mtcars)))
 #'
 #'   model <- lm(mpg ~ new_factor * cyl * wt, data = data)
-#'   x <- estimate_means(model, levels = c("new_factor", "cyl"))
+#'   x <- estimate_means(model, at = c("new_factor", "cyl"))
 #'   plot(visualisation_recipe(x))
 #'
 #'   # Modulations --------------
-#'   x <- estimate_means(model, levels = c("new_factor"), modulate = "wt")
+#'   x <- estimate_means(model, at = c("new_factor", "wt"))
 #'   plot(visualisation_recipe(x))
 #'
-#'   x <- estimate_means(model, levels = c("new_factor", "cyl"), modulate = "wt")
+#'   x <- estimate_means(model, at = c("new_factor", "cyl", "wt"))
 #'   plot(visualisation_recipe(x))
 #'
 #'   #'   # GLMs ---------------------
 #'   data <- data.frame(vs = mtcars$vs, cyl = as.factor(mtcars$cyl))
 #'   x <- estimate_means(glm(vs ~ cyl, data = data, family = "binomial"))
 #'   plot(visualisation_recipe(x))
+#' }
 #' }
 #' @export
 visualisation_recipe.estimate_means <- function(x,
@@ -64,7 +69,8 @@ visualisation_recipe.estimate_means <- function(x,
   color <- NULL
   alpha <- NULL
 
-  levels <- info$levels
+  levels <- info$at[info$at %in% names(data[!sapply(data, is.numeric)])]
+  modulate <- info$at[info$at %in% names(data[sapply(data, is.numeric)])]
   x1 <- levels[1]
   if (length(levels) > 1) {
     color <- levels[2]
@@ -73,9 +79,9 @@ visualisation_recipe.estimate_means <- function(x,
       warning("Cannot deal with more than 2 levels variables for now. Other ones will be omitted.")
     }
   }
-  if (!is.null(info$modulate)) {
-    alpha <- info$modulate[1]
-    if (length(info$modulate) > 1) {
+  if (!is.null(modulate) && length(modulate) > 0) {
+    alpha <- modulate[1]
+    if (length(modulate) > 1) {
       warning("Cannot deal with more than 2 modulate variables for now. Other ones will be omitted.")
     }
   }
@@ -85,7 +91,7 @@ visualisation_recipe.estimate_means <- function(x,
   l <- 1
 
   # Show data (points, boxplot, violin, etc.)
-  if (!is.null(show_data) && all(show_data != "none")) {
+  if (!is.null(show_data) && all(show_data != "none") && all(show_data != FALSE)) {
 
     # Default changes for binomial models
     shape <- 16
@@ -122,7 +128,7 @@ visualisation_recipe.estimate_means <- function(x,
   layers[[paste0("l", l)]] <- .visualisation_means_labs(info, x1, y, labs = labs)
 
   # Out
-  class(layers) <- c("visualisation_recipe", class(layers))
+  class(layers) <- unique(c("visualisation_recipe", "see_visualisation_recipe", class(layers)))
   attr(layers, "data") <- data
   layers
 }

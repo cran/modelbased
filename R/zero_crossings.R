@@ -9,9 +9,8 @@
 #' x <- sin(seq(0, 4 * pi, length.out = 100))
 #' plot(x)
 #' zero_crossings(x)
-#' @importFrom stats approxfun
 #' @return Vector of zero crossings.
-#' @seealso Based on the \code{uniroot.all} function from the rootSolve package.
+#' @seealso Based on the `uniroot.all` function from the rootSolve package.
 #' @export
 zero_crossings <- function(x) {
 
@@ -24,12 +23,7 @@ zero_crossings <- function(x) {
 }
 
 
-
-
-
-
 #' Copied from rootSolve package
-#' @importFrom stats uniroot
 #' @keywords internal
 .uniroot.all <- function(f,
                          interval,

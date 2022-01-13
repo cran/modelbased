@@ -5,10 +5,10 @@
 #' within each factor level combination).
 #'
 #' @param x A numeric vector.
-#' @param method Can be \link[=loess]{"loess"} (default) or
-#'   \link[=smooth]{"smooth"}. A loess smoothing can be slow.
-#' @param strength This argument only applies when \code{method = "loess"}.
-#'   Degree of smoothing passed to \code{span} (see \code{\link{loess}}).
+#' @param method Can be ["loess"][loess] (default) or
+#'   ["smooth"][smooth]. A loess smoothing can be slow.
+#' @param strength This argument only applies when `method = "loess"`.
+#'   Degree of smoothing passed to `span` (see [loess()]).
 #' @param ... Arguments passed to or from other methods.
 #'
 #'
@@ -22,7 +22,6 @@
 #' plot(x, type = "l")
 #' lines(smoothing(x, method = "smooth"), type = "l", col = "blue")
 #' lines(smoothing(x, method = "loess"), type = "l", col = "red")
-#' @importFrom stats predict loess smooth
 #' @return A smoothed vector or data frame.
 #' @export
 smoothing <- function(x, method = "loess", strength = 0.25, ...) {
@@ -30,7 +29,6 @@ smoothing <- function(x, method = "loess", strength = 0.25, ...) {
 }
 
 
-#' @importFrom stats predict loess smooth
 #' @export
 smoothing.numeric <- function(x, method = "loess", strength = 0.25, ...) {
   if (strength == 0 | strength == FALSE | is.null(method)) {

@@ -4,18 +4,9 @@
 [![publication](https://img.shields.io/badge/Cite-Unpublished-yellow)](https://github.com/easystats/modelbased/blob/master/inst/CITATION)
 [![downloads](http://cranlogs.r-pkg.org/badges/modelbased)](https://cran.r-project.org/package=modelbased)
 [![total](https://cranlogs.r-pkg.org/badges/grand-total/modelbased)](https://cranlogs.r-pkg.org/)
+[![status](https://tinyverse.netlify.com/badge/modelbased)](https://CRAN.R-project.org/package=modelbased)
 
 ***Taking your models to new heights***
-
-------------------------------------------------------------------------
-
-:warning: `estimate_link()` now does *not* transform predictions on the
-response scale for GLMs. To keep the previous behaviour, use the new
-`estimate_relation()` instead. This follows a change in how predictions
-are made internally (which now relies on
-[`get_predicted()`](https://easystats.github.io/insight/reference/get_predicted.html),
-so more details can be found there). This will allow *modelbased* to be
-more robust and polyvalent. Apologies for the breaks.
 
 ------------------------------------------------------------------------
 
@@ -26,8 +17,10 @@ predictions.
 ## Installation
 
 [![CRAN](http://www.r-pkg.org/badges/version/modelbased)](https://cran.r-project.org/package=modelbased)
+[![modelbased status
+badge](https://easystats.r-universe.dev/badges/modelbased)](https://easystats.r-universe.dev)
 ![Tests](https://github.com/easystats/modelbased/workflows/Tests/badge.svg)
-[![codecov](https://codecov.io/gh/easystats/modelbased/branch/master/graph/badge.svg)](https://codecov.io/gh/easystats/modelbased)
+[![codecov](https://codecov.io/gh/easystats/modelbased/branch/master/graph/badge.svg)](https://app.codecov.io/gh/easystats/modelbased)
 
 Run the following to install the stable release of **modelbased** from
 CRAN:
@@ -60,10 +53,16 @@ check-out these vignettes:
     means**](https://easystats.github.io/modelbased/articles/estimate_means.html)
 -   [**Contrast
     analysis**](https://easystats.github.io/modelbased/articles/estimate_contrasts.html)
+-   [**Marginal
+    effects**](https://easystats.github.io/modelbased/articles/estimate_slopes.html)
 -   [**Use a model to make
     predictions**](https://easystats.github.io/modelbased/articles/estimate_response.html)
 -   [**Describe non-linear
     curves**](https://easystats.github.io/modelbased/articles/describe_nonlinear.html)
+-   [**Estimate and re-use random
+    effects**](https://easystats.github.io/modelbased/articles/estimate_grouplevel.html)
+-   [**The modelisation
+    approach**](https://easystats.github.io/modelbased/articles/modelisation_approach.html)
 
 # Features
 
@@ -75,11 +74,9 @@ The package is built around 5 main functions:
     Estimates and tests contrasts between different factor levels
 -   [`estimate_slopes()`](https://easystats.github.io/modelbased/reference/estimate_slopes.html):
     Estimates the slopes of numeric predictors at different factor
-    levels
+    levels or alongside a numeric predictor
 -   [`estimate_response()`](https://easystats.github.io/modelbased/articles/estimate_response.html):
     Predict the response variable using the model
--   [`describe_nonlinear()`](https://easystats.github.io/modelbased/reference/describe_nonlinear.html):
-    Describes a non-linear term (*e.g.* in GAMs) by its linear parts
 
 These functions are powered by the
 [`visualisation_matrix()`](https://easystats.github.io/modelbased/reference/visualisation_matrix.html)
@@ -106,13 +103,13 @@ library(see)
 library(modelbased)
 
 # 1. Fit model and get visualization matrix
-model <- lm(Sepal.Length ~ Petal.Length * Petal.Width, data = iris) 
+model <- lm(Sepal.Length ~ Petal.Length * Petal.Width, data = iris)
 
 # 2. Create a visualisation matrix with expected Z-score values of Petal.Width
-vizdata <- modelbased::visualisation_matrix(model, target = c("Petal.Length", "Petal.Width = c(-1, 0, 1)")) 
+vizdata <- modelbased::visualisation_matrix(model, at = c("Petal.Length", "Petal.Width = c(-1, 0, 1)"))
 
 # 3. Revert from expected SD to actual values
-vizdata <- effectsize::unstandardize(vizdata, select = "Petal.Width") 
+vizdata <- effectsize::unstandardize(vizdata, select = "Petal.Width")
 
 # 4. Add predicted relationship from the model
 vizdata <- modelbased::estimate_expectation(vizdata)
@@ -123,12 +120,12 @@ vizdata$Petal.Width <- effectsize::format_standardize(vizdata$Petal.Width, refer
 # 6. Plot
 ggplot(iris, aes(x = Petal.Length, y = Sepal.Length)) +
   # Add points from original dataset (only shapes 21-25 have a fill aesthetic)
-  geom_point2(aes(fill = Petal.Width), shape = 21, size = 5) + 
+  geom_point2(aes(fill = Petal.Width), shape = 21, size = 5) +
   # Add relationship lines
   geom_line(data = vizdata, aes(y = Predicted, color = Petal.Width), size = 1) +
   # Improve colors / themes
   scale_color_viridis_d(direction = -1) +
-  scale_fill_viridis_c(guide = FALSE) +
+  scale_fill_viridis_c(guide = "none") +
   theme_modern()
 ```
 
@@ -152,7 +149,7 @@ for a detailed walkthrough on *marginal means*.
 model <- lm(Sepal.Width ~ Species, data = iris)
 
 # 2. Obtain estimated means
-means <- modelbased::estimate_means(model)
+means <- estimate_means(model)
 means
 ## Estimated Marginal Means
 ## 
@@ -162,14 +159,14 @@ means
 ## versicolor | 2.77 | 0.05 | [2.68, 2.86]
 ## virginica  | 2.97 | 0.05 | [2.88, 3.07]
 ## 
-## Marginal means estimated for Species
+## Marginal means estimated at Species
 
-# 3. Plot 
+# 3. Plot
 ggplot(iris, aes(x = Species, y = Sepal.Width)) +
-  # Add base data 
+  # Add base data
   geom_violin(aes(fill = Species), color = "white") +
   geom_jitter2(width = 0.05, alpha = 0.5) +
-  
+
   # Add pointrange and line from means
   geom_line(data = means, aes(y = Mean, group = 1), size = 1) +
   geom_pointrange(
@@ -203,7 +200,7 @@ for a detailed walkthrough on *contrast analysis*.
 model <- lm(Sepal.Width ~ Species, data = iris)
 
 # 2. Estimate marginal contrasts
-contrasts <- modelbased::estimate_contrasts(model)
+contrasts <- estimate_contrasts(model)
 contrasts
 ## Marginal Contrasts Analysis
 ## 
@@ -213,7 +210,7 @@ contrasts
 ## setosa     |  virginica |       0.45 | [ 0.29,  0.62] | 0.07 |   6.68 | < .001
 ## versicolor |  virginica |      -0.20 | [-0.37, -0.04] | 0.07 |  -3.00 | 0.009 
 ## 
-## Marginal contrasts estimated for Species
+## Marginal contrasts estimated at Species
 ## p-value adjustment method: Holm (1979)
 ```
 
@@ -232,7 +229,7 @@ contrasts
 ``` r
 model <- lm(Sepal.Width ~ Species * Petal.Length, data = iris)
 
-estimate_contrasts(model, modulate = "Petal.Length", length = 3)
+estimate_contrasts(model, at = "Petal.Length", length = 3)
 ## Marginal Contrasts Analysis
 ## 
 ## Level1     |     Level2 | Petal.Length | Difference |        95% CI |   SE | t(144) |      p
@@ -247,22 +244,22 @@ estimate_contrasts(model, modulate = "Petal.Length", length = 3)
 ## versicolor |  virginica |         3.95 |       0.06 | [-0.30, 0.42] | 0.15 |   0.37 | 0.926 
 ## versicolor |  virginica |         6.90 |       0.47 | [-0.22, 1.16] | 0.28 |   1.65 | 0.229 
 ## 
-## Marginal contrasts estimated for Species
+## Marginal contrasts estimated at Species
 ## p-value adjustment method: Holm (1979)
 ```
 
 ``` r
 # Recompute contrasts with a higher precision (for a smoother plot)
-contrasts <- estimate_contrasts(model, modulate = "Petal.Length", length = 20)
+contrasts <- estimate_contrasts(model, at = "Petal.Length", length = 20)
 
-# Add Contrast column by concatenating 
+# Add Contrast column by concatenating
 contrasts$Contrast <- paste(contrasts$Level1, "-", contrasts$Level2)
 
 # Plot
-ggplot(contrasts, aes(x = Petal.Length, y = Difference,)) +
+ggplot(contrasts, aes(x = Petal.Length, y = Difference, )) +
   # Add line and CI band
   geom_line(aes(color = Contrast)) +
-  geom_ribbon(aes(ymin = CI_low, ymax=CI_high, fill = Contrast), alpha = 0.2) +
+  geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Contrast), alpha = 0.2) +
   # Add line at 0, indicating no difference
   geom_hline(yintercept = 0, linetype = "dashed") +
   # Colors
@@ -289,27 +286,27 @@ for a detailed walkthrough on *predictions*.
 ``` r
 # Fit model 1 and predict the response variable
 model1 <- lm(Petal.Length ~ Sepal.Length, data = iris)
-pred1 <- modelbased::estimate_response(model1)
-pred1$Petal.Length <- iris$Petal.Length  # Add true response
+pred1 <- estimate_response(model1)
+pred1$Petal.Length <- iris$Petal.Length # Add true response
 
 # Print first 5 lines of output
 head(pred1, n = 5)
-## Model-based Prediction
+## Model-based Expectation
 ## 
-## Sepal.Length | Predicted |   SE |        95% CI | Residuals | Petal.Length
-## --------------------------------------------------------------------------
-## 5.10         |      2.38 | 0.87 | [ 0.65, 4.10] |      0.98 |         1.40
-## 4.90         |      2.00 | 0.87 | [ 0.28, 3.73] |      0.60 |         1.40
-## 4.70         |      1.63 | 0.88 | [-0.10, 3.36] |      0.33 |         1.30
-## 4.60         |      1.45 | 0.88 | [-0.29, 3.18] |     -0.05 |         1.50
-## 5.00         |      2.19 | 0.87 | [ 0.46, 3.92] |      0.79 |         1.40
+## Sepal.Length | Predicted |   SE |       95% CI | Residuals | Petal.Length
+## -------------------------------------------------------------------------
+## 5.10         |      2.38 | 0.10 | [2.19, 2.57] |      0.98 |         1.40
+## 4.90         |      2.00 | 0.11 | [1.79, 2.22] |      0.60 |         1.40
+## 4.70         |      1.63 | 0.12 | [1.39, 1.87] |      0.33 |         1.30
+## 4.60         |      1.45 | 0.13 | [1.19, 1.70] |     -0.05 |         1.50
+## 5.00         |      2.19 | 0.10 | [1.99, 2.39] |      0.79 |         1.40
 ## 
 ## Variable predicted: Petal.Length
 
 # Same for model 2
 model2 <- lm(Petal.Length ~ Sepal.Length * Species, data = iris)
-pred2 <- modelbased::estimate_response(model2)
-pred2$Petal.Length <- iris$Petal.Length 
+pred2 <- estimate_response(model2)
+pred2$Petal.Length <- iris$Petal.Length
 
 
 # Initialize plot for model 1
@@ -327,7 +324,7 @@ ggplot(data = pred1, aes(x = Petal.Length, y = Predicted)) +
 
 ![](man/figures/unnamed-chunk-10-1.png)<!-- -->
 
-## Extract and Format Group-level Random Effects
+## Extract and format group-level random effects
 
 -   **Problem**: You have a mixed model and you would like to easily
     access the random part, i.e., the group-level effects (e.g., the
@@ -343,7 +340,8 @@ library(lme4)
 
 model <- lmer(mpg ~ drat + (1 + drat | cyl), data = mtcars)
 
-modelbased::estimate_grouplevel(model)
+random <- estimate_grouplevel(model)
+random
 ## Group | Level |   Parameter | Coefficient |   SE |         95% CI
 ## -----------------------------------------------------------------
 ## cyl   |     4 | (Intercept) |       -3.45 | 0.56 | [-4.55, -2.36]
@@ -352,9 +350,42 @@ modelbased::estimate_grouplevel(model)
 ## cyl   |     6 |        drat |       -0.09 | 0.54 | [-1.15,  0.98]
 ## cyl   |     8 | (Intercept) |        3.32 | 0.73 | [ 1.89,  4.74]
 ## cyl   |     8 |        drat |       -2.15 | 0.47 | [-3.07, -1.23]
+
+plot(random)
 ```
 
+![](man/figures/unnamed-chunk-11-1.png)<!-- -->
+
 <!-- TODO: add plotting example once 'see' on cran -->
+
+## Estimate derivative of non-linear relationships (e.g., in GAMs)
+
+-   **Problem**: You model a non-linear relationship using polynomials,
+    splines or GAMs. You want to know which parts of the curve are
+    significant positive or negative trends.
+-   **Solution**: You can estimate the *derivative* of smooth using
+    `estimate_slopes`.
+
+Check-out [**this
+vignette**](https://easystats.github.io/modelbased/articles/estimate_slopes.html)
+for a detailed walkthrough on *marginal effects*.
+
+``` r
+# Fit a non-linear General Additive Model (GAM)
+model <- mgcv::gam(Sepal.Width ~ s(Petal.Length), data = iris)
+
+# 1. Compute derivatives
+deriv <- estimate_slopes(model,
+  trend = "Petal.Length",
+  at = "Petal.Length",
+  length = 100
+)
+
+# 2. Visualise
+plot(deriv)
+```
+
+![](man/figures/unnamed-chunk-12-1.png)<!-- -->
 
 ## Describe the smooth term by its linear parts
 
@@ -384,7 +415,7 @@ ggplot(vizdata, aes(x = Petal.Length, y = Predicted)) +
   theme_modern()
 ```
 
-![](man/figures/unnamed-chunk-12-1.png)<!-- -->
+![](man/figures/unnamed-chunk-13-1.png)<!-- -->
 
 ``` r
 
@@ -403,3 +434,77 @@ vignette**](https://easystats.github.io/modelbased/articles/estimate_response.ht
 for a walkthrough on how to do that.
 
 <img src="https://github.com/easystats/modelbased/raw/master/man/figures/gganimate_figure.gif" width="80%" style="display: block; margin: auto;" />
+
+## Understand interactions between two continuous variables
+
+Also referred to as **Johnson-Neyman intervals**, this plot shows how
+the effect (the “slope”) of one variable varies depending on another
+variable. It is useful in the case of complex interactions between
+continuous variables.
+
+For instance, the plot below shows that the effect of `hp` (the y-axis)
+is significantly negative only when `wt` is low (`< ~4`).
+
+``` r
+model <- lm(mpg ~ hp * wt, data = mtcars)
+
+slopes <- estimate_slopes(model, trend = "hp", at = "wt")
+
+plot(slopes)
+```
+
+![](man/figures/unnamed-chunk-15-1.png)<!-- -->
+
+## Visualize predictions with random effects
+
+Aside from plotting the coefficient of each random effect (as done
+[here](https://github.com/easystats/modelbased#extract-and-format-group-level-random-effects)),
+we can also visualize the predictions of the model for each of these
+levels, which can be useful to diagnostic or see how they contribute to
+the fixed effects. We will do that by making predictions with
+`estimate_relation` and setting `include_random` to `TRUE`.
+
+Let’s model the reaction time with the number of days of sleep
+deprivation as fixed effect and the participants as random intercept.
+
+``` r
+library(lme4)
+
+model <- lmer(Reaction ~ Days + (1 | Subject), data = sleepstudy)
+
+preds <- estimate_relation(model, include_random = TRUE)
+
+plot(preds, ribbon = list(alpha = 0)) # Make CI ribbon transparent for clarity
+```
+
+![](man/figures/unnamed-chunk-16-1.png)<!-- -->
+
+As we can see, each participant has a different “intercept” (starting
+point on the y-axis), but all their slopes are the same: this is because
+the only slope is the “general” one estimated across all participants by
+the fixed effect. Let’s address that and allow the slope to vary for
+each participant too.
+
+``` r
+model <- lmer(Reaction ~ Days + (1 + Days | Subject), data = sleepstudy)
+
+preds <- estimate_relation(model, include_random = TRUE)
+
+plot(preds, ribbon = list(alpha = 0.1))
+```
+
+![](man/figures/unnamed-chunk-17-1.png)<!-- -->
+
+As we can see, all participants has now a different effect. Let’s plot,
+on top of that, the “fixed” effect estimated across all these individual
+effects.
+
+``` r
+fixed_pred <- estimate_relation(model) # This time, include_random is FALSE (default)
+
+plot(preds, ribbon = list(alpha = 0)) + # Previous plot
+  geom_ribbon(data = fixed_pred, aes(x = Days, ymin = CI_low, ymax = CI_high), alpha = 0.4) +
+  geom_line(data = fixed_pred, aes(x = Days, y = Predicted), size = 2)
+```
+
+![](man/figures/unnamed-chunk-18-1.png)<!-- -->

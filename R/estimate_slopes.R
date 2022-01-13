@@ -1,43 +1,69 @@
 #' Estimate Marginal Effects
 #'
-#' Estimate the slopes (i.e., the coefficient) of a predictor over different factor levels. See also other
-#' related functions such as \code{\link{estimate_contrasts}} and \code{\link{estimate_means}}.
+#' Estimate the slopes (i.e., the coefficient) of a predictor over or within different
+#' factor levels, or alongside a numeric variable . In other words, to assess the effect of a predictor *at* specific configurations data. Other related
+#' functions based on marginal estimations includes [estimate_contrasts()] and
+#' [estimate_means()].
+#' \cr\cr
+#' See the **Details** section below, and don't forget to also check out the [Vignettes](https://easystats.github.io/modelbased/articles/estimate_slopes.html) and [README examples](https://easystats.github.io/modelbased/index.html#features) for various examples, tutorials and usecases.
 #'
+#' @inheritParams model_emmeans
+#' @inheritParams estimate_means
 #'
-#' @inheritParams estimate_contrasts
-#' @param trend A character vector indicating the name of the numeric variable
-#'   for which to compute the slopes.
-#' @param levels A character vector indicating the variables over which the
-#'   slope will be computed. If NULL (default), it will select all the remaining
-#'   predictors.
+#' @details The [estimate_slopes()], [estimate_means()] and [estimate_contrasts()] functions are forming a group, as they are all based on *marginal* estimations (estimations based on a model). All three are also built on the \pkg{emmeans} package, so reading its documentation (for instance for [emmeans::emmeans()] and [emmeans::emtrends()]) is recommended to understand the idea behind these types of procedures.
+#'
+#' \itemize{
+#' \item Model-based **predictions** is the basis for all that follows. Indeed, the first thing to understand is how models can be used to make predictions (see [estimate_link()]). This corresponds to the predicted response (or "outcome variable") given specific predictor values of the predictors (i.e., given a specific data configuration). This is why the concept of [`reference grid()`][visualisation_matrix] is so important for direct predictions.
+#' \item **Marginal "means"**, obtained via [estimate_means()], are an extension of such predictions, allowing to "average" (collapse) some of the predictors, to obtain the average response value at a specific predictors configuration. This is typically used when some of the predictors of interest are factors. Indeed, the parameters of the model will usually give you the intercept value and then the "effect" of each factor level (how different it is from the intercept). Marginal means can be used to directly give you the mean value of the response variable at all the levels of a factor. Moreover, it can also be used to control, or average over predictors, which is useful in the case of multiple predictors with or without interactions.
+#' \item **Marginal contrasts**, obtained via [estimate_contrasts()], are themselves at extension of marginal means, in that they allow to investigate the difference (i.e., the contrast) between the marginal means. This is, again, often used to get all pairwise differences between all levels of a factor. It works also for continuous predictors, for instance one could also be interested in whether the difference at two extremes of a continuous predictor is significant.
+#' \item Finally, **marginal effects**, obtained via [estimate_slopes()], are different in that their focus is not values on the response variable, but the model's parameters. The idea is to assess the effect of a predictor at a specific configuration of the other predictors. This is relevant in the case of interactions or non-linear relationships, when the effect of a predictor variable changes depending on the other predictors. Moreover, these effects can also be "averaged" over other predictors, to get for instance the "general trend" of a predictor over different factor levels.
+#' }
+#' **Example:** let's imagine the following model `lm(y ~ condition * x)` where `condition` is a factor with 3 levels A, B and C and `x` a continuous variable (like age for example). One idea is to see how this model performs, and compare the actual response y to the one predicted by the model (using [estimate_response()]). Another idea is evaluate the average mean at each of the condition's levels (using [estimate_means()]), which can be useful to visualize them. Another possibility is to evaluate the difference between these levels (using [estimate_contrasts()]). Finally, one could also estimate the effect of x averaged over all conditions, or instead within each condition (`using [estimate_slopes]`).
+#'
 #'
 #' @examples
-#' model <- lm(Sepal.Width ~ Species * Petal.Length, data = iris)
-#' slopes <- estimate_slopes(model, trend = "Petal.Length")
-#' slopes
-#' effectsize::standardize(slopes)
-#' \dontrun{
-#' if (require("rstanarm")) {
-#'   model <- stan_glm(Sepal.Width ~ Species * Petal.Length, data = iris, refresh = 0)
-#'   estimate_slopes(model)
-#' }
+#' # Get an idea of the data
+#' if (require("ggplot2")) {
+#'   ggplot(iris, aes(x = Petal.Length, y = Sepal.Width)) +
+#'     geom_point(aes(color = Species)) +
+#'     geom_smooth(color = "black", se = FALSE) +
+#'     geom_smooth(aes(color = Species), linetype = "dotted", se = FALSE) +
+#'     geom_smooth(aes(color = Species), method = "lm", se = FALSE)
 #' }
 #'
-#' @return A data.frame.
+#' # Model it
+#' model <- lm(Sepal.Width ~ Species * Petal.Length, data = iris)
+#' # Compute the marginal effect of Petal.Length at each level of Species
+#' slopes <- estimate_slopes(model, trend = "Petal.Length", at = "Species")
+#' slopes
+#' plot(slopes)
+#' effectsize::standardize(slopes)
+#'
+#' if (require("mgcv")) {
+#'   model <- mgcv::gam(Sepal.Width ~ s(Petal.Length), data = iris)
+#'   slopes <- estimate_slopes(model, at = "Petal.Length", length = 50)
+#'   summary(slopes)
+#'   plot(slopes)
+#'
+#'   model <- mgcv::gam(Sepal.Width ~ s(Petal.Length, by = Species), data = iris)
+#'   slopes <- estimate_slopes(model,
+#'     trend = "Petal.Length",
+#'     at = c("Petal.Length", "Species"), length = 20
+#'   )
+#'   summary(slopes)
+#'   plot(slopes)
+#' }
+#' @return A data.frame of class `estimate_slopes`.
 #' @export
 estimate_slopes <- function(model,
                             trend = NULL,
-                            levels = NULL,
+                            at = NULL,
                             ci = 0.95,
                             ...) {
-  # check if available
-  insight::check_if_installed("emmeans")
 
-  # Guess specs arguments
-  args <- .estimate_slopes_guess_args(model, trend, levels, ...)
-
-  # Run emtrends
-  estimated <- emmeans::emtrends(model, args$levels, var = args$trend, ...)
+  # Sanitize arguments
+  estimated <- model_emtrends(model, trend, at, ...)
+  info <- attributes(estimated)
 
   # Summarize and clean
   if (insight::model_info(model)$is_bayesian) {
@@ -45,65 +71,124 @@ estimate_slopes <- function(model,
     trends <- cbind(estimated@grid, trends)
     trends$`.wgt.` <- NULL # Drop the weight column
     trends <- .clean_names_bayesian(trends, model, transform = "none", type = "trend")
-    trends <- insight::data_relocate(trends, c("CI_low", "CI_high"), after = "Coefficient")
+    trends <- datawizard::data_relocate(trends, c("CI_low", "CI_high"), after = "Coefficient")
   } else {
     trends <- parameters::parameters(estimated, ci = ci, ...)
   }
+  # Remove the "1 - overall" column that can appear in cases like y ~ x
+  trends <- trends[names(trends) != "1"]
 
   # Restore factor levels
-  trends <- insight::data_restoretype(trends, insight::get_data(model))
+  trends <- datawizard::data_restoretype(trends, insight::get_data(model))
 
   # Table formatting
   attr(trends, "table_title") <- c("Estimated Marginal Effects", "blue")
-  attr(trends, "table_footer") <- c(paste("Marginal effects estimated for", args$trend), "blue")
+  attr(trends, "table_footer") <- c(paste("Marginal effects estimated for", info$trend), "blue")
 
   # Add attributes
   attr(trends, "model") <- model
   attr(trends, "response") <- insight::find_response(model)
   attr(trends, "ci") <- ci
-  attr(trends, "levels") <- args$levels
-  attr(trends, "trend") <- args$trend
-
+  attr(trends, "trend") <- info$trend
+  attr(trends, "at") <- info$at
 
   # Output
-  class(trends) <- c("estimate_slopes", class(trends))
+  class(trends) <- c("estimate_slopes_summary", "estimate_slopes", class(trends))
   trends
 }
 
 
+# Summary Method ===============================================================
 
+
+#' @export
+summary.estimate_slopes <- function(object, ...) {
+  data <- as.data.frame(object)
+  trend <- attributes(object)$trend
+
+  # Add "Confidence" col based on the sig index present in the data
+  data$Confidence <- .estimate_slopes_sig(data, ...)
+
+  # Grouping variables
+  vars <- attributes(object)$at
+  vars <- vars[!vars %in% trend]
+
+  # If no grouping variables, summarize all
+  if (length(vars) == 0) {
+    out <- .estimate_slopes_summarize(data, trend = trend)
+  } else {
+    out <- data.frame()
+    # Create vizmatrix of grouping variables
+    groups <- as.data.frame(visualisation_matrix(data[vars], factors = "all", numerics = "all"))
+    # Summarize all of the chunks
+    for (i in 1:nrow(groups)) {
+      g <- data[datawizard::data_match(data, groups[i, , drop = FALSE]), , drop = FALSE]
+      out <- rbind(out, .estimate_slopes_summarize(g, trend = trend))
+    }
+    out <- datawizard::data_relocate(out, vars)
+  }
+
+  # Clean and sanitize
+  out$Confidence <- NULL # Drop significance col
+  attributes(out) <- utils::modifyList(attributes(object), attributes(out))
+  class(out) <- c("estimate_slopes", class(out))
+  attr(out, "table_title") <- c("Average Marginal Effects", "blue")
+  out
+}
 
 
 
 # Utilities ---------------------------------------------------------------
+.estimate_slopes_summarize <- function(data, trend, ...) {
 
-
-#' @keywords internal
-.estimate_slopes_guess_args <- function(model, trend, levels, ...) {
-  # Gather info
-  predictors <- insight::find_predictors(model, flatten = TRUE, ...)
-  data <- insight::get_data(model)
-
-  # Guess arguments
-  if (is.null(trend)) {
-    trend <- predictors[sapply(data[predictors], is.numeric)][1]
-    if (!length(trend) || is.na(trend)) {
-      stop("Model contains no numeric predictor. Cannot estimate trend.")
+  # Find beginnings and ends -----------------------
+  # First row - starting point
+  sig <- data$Confidence[1]
+  starts <- 1
+  ends <- nrow(data)
+  # Iterate through all rows to find blocks
+  for (i in 2:nrow(data)) {
+    if (data$Confidence[i] != sig) {
+      sig <- data$Confidence[i]
+      starts <- c(starts, i)
+      ends <- c(ends, i - 1)
     }
-    message('No numeric variable was specified for slope estimation. Selecting `trend = "', trend, '"`.')
   }
-  if (length(trend) > 1) {
-    message("More than one numeric variable was selected for slope estimation. Keeping only ", trend[1], ".")
-    trend <- trend[1]
+  ends <- sort(ends)
+
+  # Summarize these groups -----------------------
+  out <- data.frame()
+  for (g in 1:length(starts)) {
+    dat <- data[starts[g]:ends[g], ]
+    dat <- as.data.frame(visualisation_matrix(dat, at = NULL, factors = "mode"))
+    dat <- cbind(data.frame("Start" = data[starts[g], trend], "End" = data[ends[g], trend]), dat)
+    out <- rbind(out, dat)
+  }
+  out
+}
+
+
+
+.estimate_slopes_sig <- function(x, confidence = "auto", ...) {
+  if (confidence == "auto") {
+    # TODO: make sure all of these work
+    if ("BF" %in% names(x)) confidence <- "BF"
+    if ("p" %in% names(x)) confidence <- "p"
+    if ("pd" %in% names(x)) confidence <- "pd"
   }
 
-  if (is.null(levels)) {
-    levels <- predictors[!predictors %in% trend]
-  }
 
-  if (length(levels) == 0) {
-    stop("No suitable factor levels detected over which to estimate slopes.")
-  }
 
-  list(trend = trend, levels = levels)
+  if (confidence == "p") {
+    sig <- tools::toTitleCase(effectsize::interpret_p(x$p, ...))
+  } else if (confidence == "BF") {
+    sig <- tools::toTitleCase(effectsize::interpret_bf(x$BF, ...))
+  } else if (confidence == "pd") {
+    sig <- tools::toTitleCase(effectsize::interpret_pd(x$pd, ...))
+  } else {
+    # Based on CI
+    sig <- ifelse((x$CI_high < 0 & x$CI_low < 0) | (x$CI_high > 0 & x$CI_low > 0), "Significant", "Uncertain")
+    sig <- factor(sig, levels = c("Uncertain", "Significant"))
+  }
+  sig
 }

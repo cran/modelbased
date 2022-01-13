@@ -1,5 +1,5 @@
 #' @rdname estimate_grouplevel
-#' @param x The output of \code{estimate_grouplevel()}.
+#' @param x The output of `estimate_grouplevel()`.
 #' @param indices A list containing the indices to extract.
 #' @export
 reshape_grouplevel <- function(x, indices = "all", ...) {
@@ -49,7 +49,7 @@ reshape_grouplevel.estimate_grouplevel <- function(x, indices = "all", ...) {
       data_group$Parameter
     )
 
-    data_wide <- insight::data_to_wide(
+    data_wide <- datawizard::data_to_wide(
       data_group[c(group, newvars, "Parameter")],
       rows_from = group,
       values_from = newvars,

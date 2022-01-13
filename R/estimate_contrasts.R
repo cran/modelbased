@@ -1,13 +1,17 @@
 #' Estimate Marginal Contrasts
 #'
-#' Run a contrast analysis by estimating the differences between each level of a factor. See also other
-#' related functions such as \code{\link{estimate_means}} and \code{\link{estimate_slopes}}.
+#' Run a contrast analysis by estimating the differences between each level of a
+#' factor. See also other related functions such as [estimate_means()]
+#' and [estimate_slopes()].
 #'
 #' @inheritParams estimate_means
-#' @param adjust The p-values adjustment method for frequentist multiple comparisons. Can be
-#'   one of "holm" (default), "tukey", "hochberg", "hommel", "bonferroni", "BH",
-#'   "BY", "fdr" or "none". See the p-value adjustment section in the
-#'   \code{emmeans::test} documentation.
+#' @inheritParams model_emcontrasts
+#' @param adjust The p-values adjustment method for frequentist multiple
+#'   comparisons. Can be one of "holm" (default), "tukey", "hochberg", "hommel",
+#'   "bonferroni", "BH", "BY", "fdr" or "none". See the p-value adjustment
+#'   section in the `emmeans::test` documentation.
+#'
+#' @inherit estimate_slopes details
 #'
 #' @examples
 #' library(modelbased)
@@ -18,10 +22,18 @@
 #'
 #' # Dealing with interactions
 #' model <- lm(Sepal.Width ~ Species * Petal.Width, data = iris)
+#' # By default: selects first factor
 #' estimate_contrasts(model)
+#' # Can also run contrasts between points of numeric
+#' estimate_contrasts(model, contrast = "Petal.Width", length = 4)
+#' # Or both
+#' estimate_contrasts(model, contrast = c("Species", "Petal.Width"), length = 2)
+#' # Or with custom specifications
+#' estimate_contrasts(model, contrast = c("Species", "Petal.Width=c(1, 2)"))
+#' # Can fixate the numeric at a specific value
 #' estimate_contrasts(model, fixed = "Petal.Width")
-#' estimate_contrasts(model, modulate = "Petal.Width", length = 4)
-#' estimate_contrasts(model, levels = "Petal.Width", length = 4)
+#' # Or modulate it
+#' estimate_contrasts(model, at = "Petal.Width", length = 4)
 #'
 #' # Standardized differences
 #' estimated <- estimate_contrasts(lm(Sepal.Width ~ Species, data = iris))
@@ -48,54 +60,33 @@
 #'   model <- stan_glm(mpg ~ cyl * wt, data = data, refresh = 0)
 #'   estimate_contrasts(model)
 #'   estimate_contrasts(model, fixed = "wt")
-#'   estimate_contrasts(model, modulate = "wt", length = 4)
-#'   estimate_contrasts(model, levels = "wt", length = 4)
+#'   estimate_contrasts(model, at = "wt", length = 4)
 #'
 #'   model <- stan_glm(Sepal.Width ~ Species + Petal.Width + Petal.Length, data = iris, refresh = 0)
-#'   estimate_contrasts(model, fixed = "Petal.Width", modulate = "Petal.Length", test = "bf")
-#' }
-#'
-#' if (require("brms")) {
-#'   model <- brm(mpg ~ cyl * am, data = data, refresh = 0)
-#'   estimate_contrasts(model)
+#'   estimate_contrasts(model, at = "Petal.Length", test = "bf")
 #' }
 #' }
 #'
 #' @return A data frame of estimated contrasts.
 #' @export
 estimate_contrasts <- function(model,
-                               levels = NULL,
+                               contrast = NULL,
+                               at = NULL,
                                fixed = NULL,
-                               modulate = NULL,
                                transform = "none",
                                ci = 0.95,
                                adjust = "holm",
                                ...) {
 
-  # check if available
-  insight::check_if_installed("emmeans")
-
-  # Sanitize arguments
-  args <- .guess_arguments(model, levels = levels, fixed = fixed, modulate = modulate)
-
   # Run emmeans
-  estimated <- model_emmeans(
-    model,
-    levels = args$levels,
-    fixed = args$fixed,
-    modulate = args$modulate,
-    transform = transform,
-    ...
+  estimated <- model_emcontrasts(model,
+    contrast = contrast,
+    at = at,
+    fixed = fixed,
+    transform = "none", ...
   )
 
-
-
-  # Compute pairwise contrasts
-  estimated <- emmeans::contrast(estimated,
-    by = c(.clean_argument(args$fixed), .clean_argument(args$modulate)),
-    method = "pairwise",
-    ...
-  )
+  info <- attributes(estimated)
 
   # Summarize and clean
   if (insight::model_info(model)$is_bayesian) {
@@ -107,7 +98,7 @@ estimate_contrasts <- function(model,
     contrasts <- .clean_names_frequentist(contrasts)
   }
   contrasts$null <- NULL # introduced in emmeans 1.6.1 (#115)
-  contrasts <- insight::data_relocate(contrasts, c("CI_low", "CI_high"), after = c("Difference", "Odds_ratio", "Ratio"))
+  contrasts <- datawizard::data_relocate(contrasts, c("CI_low", "CI_high"), after = c("Difference", "Odds_ratio", "Ratio"))
 
 
   # Format contrasts names
@@ -125,16 +116,16 @@ estimate_contrasts <- function(model,
 
   # Table formatting
   attr(contrasts, "table_title") <- c("Marginal Contrasts Analysis", "blue")
-  attr(contrasts, "table_footer") <- .estimate_means_footer(contrasts, args, type = "contrasts", adjust = adjust)
+  attr(contrasts, "table_footer") <- .estimate_means_footer(contrasts, info$contrast, type = "contrasts", adjust = adjust)
 
   # Add attributes
   attr(contrasts, "model") <- model
   attr(contrasts, "response") <- insight::find_response(model)
   attr(contrasts, "ci") <- ci
   attr(contrasts, "transform") <- transform
-  attr(contrasts, "levels") <- args$levels
-  attr(contrasts, "fixed") <- args$fixed
-  attr(contrasts, "modulate") <- args$modulate
+  attr(contrasts, "at") <- info$at
+  attr(contrasts, "fixed") <- info$fixed
+  attr(contrasts, "contrast") <- info$contrast
   attr(contrasts, "adjust") <- adjust
 
 

@@ -8,7 +8,7 @@ plot.estimate_contrasts <- function(x, ...) {
 #' @export
 plot.estimate_predicted <- function(x, ...) {
   layers <- visualisation_recipe(x, ...)
-  plot(layers)
+  graphics::plot(layers)
 }
 
 
@@ -17,3 +17,6 @@ plot.estimate_means <- plot.estimate_predicted
 
 #' @export
 plot.estimate_grouplevel <- plot.estimate_predicted
+
+#' @export
+plot.estimate_slopes <- plot.estimate_predicted

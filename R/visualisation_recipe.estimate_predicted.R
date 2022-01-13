@@ -1,8 +1,14 @@
-#' @rdname visualisation_recipe
+#' Visualisation Recipe for 'modelbased' Objects
+#'
+#'
+#' @param x A modelbased object.
+#' @param show_data Display the "raw" data as a background to the model-based estimation. Can be set to `"none"` to remove it. When input is the result of `estimate_means`, `show_data` can be "points" (the jittered observation points), "boxplot", "violin" a combination of them (see examples). When input is the result of `estimate_response` or `estimate_relation`, `show_data` can be "points" (the points of the original data corresponding to the x and y axes), "density_2d", "density_2d_filled", "density_2d_polygon" or "density_2d_raster".
+#' @param point,jitter,boxplot,violin,pointrange,density_2d,line,hline,ribbon,labs,facet_wrap Additional aesthetics and parameters for the geoms (see customization example).
+#' @param ... Other arguments passed to other functions.
 #'
 #' @examples
 #' # ==============================================
-#' # estimate_expectation, estimate_response, ...
+#' # estimate_relation, estimate_response, ...
 #' # ==============================================
 #' if (require("ggplot2")) {
 #'
@@ -11,6 +17,10 @@
 #'   layers <- visualisation_recipe(x)
 #'   layers
 #'   plot(layers)
+#'
+#' }
+#' \donttest{
+#' if (require("ggplot2")) {
 #'
 #'   # Customize aesthetics
 #'   layers <- visualisation_recipe(x,
@@ -31,7 +41,6 @@
 #'     scale_x_continuous(expand = c(0, 0)) +
 #'     scale_y_continuous(expand = c(0, 0))
 #'
-#'
 #'   # 2-ways interaction ------------
 #'
 #'   # Numeric * numeric
@@ -44,8 +53,8 @@
 #'   layers <- visualisation_recipe(x)
 #'   plot(layers)
 #'
-#'
 #'   # 3-ways interaction ------------
+#'
 #'   data <- mtcars
 #'   data$vs <- as.factor(data$vs)
 #'   data$cyl <- as.factor(data$cyl)
@@ -70,6 +79,24 @@
 #'   x <- estimate_relation(glm(vs ~ mpg, data = mtcars, family = "binomial"))
 #'   plot(visualisation_recipe(x))
 #'   plot(visualisation_recipe(x, show_data = "jitter", point = list(height = 0.03)))
+#'
+#'   # Multiple CIs ---------------------
+#'   x <- estimate_relation(lm(mpg ~ disp, data = mtcars), ci = c(.50, .80, .95))
+#'   plot(x)
+#' }
+#'
+#' # Bayesian models ---------------------
+#' if (require("ggplot2") && require("rstanarm")) {
+#'   model <- rstanarm::stan_glm(mpg ~ wt, data = mtcars, refresh = 0)
+#'
+#'   # Plot individual draws instead of regular ribbon
+#'   x <- estimate_relation(model, keep_iterations = TRUE)
+#'   layers <- visualisation_recipe(x, ribbon = list(color = "red"))
+#'   plot(layers)
+#'
+#'   model <- rstanarm::stan_glm(Sepal.Width ~ Species * Sepal.Length, data = iris, refresh = 0)
+#'   plot(estimate_relation(model, keep_iterations = TRUE))
+#' }
 #' }
 #' @export
 visualisation_recipe.estimate_predicted <- function(x,
@@ -92,8 +119,8 @@ visualisation_recipe.estimate_predicted <- function(x,
   group <- NULL
 
   # Retrieve predictors
-  if ("target" %in% names(info)) {
-    targets <- info$target
+  if ("at_specs" %in% names(info)) {
+    targets <- info$at_specs$varname
   } else {
     targets <- insight::find_predictors(info$model, effects = "fixed", flatten = TRUE)
   }
@@ -138,7 +165,8 @@ visualisation_recipe.estimate_predicted <- function(x,
   l <- 1
 
   # Points
-  if (!is.null(show_data) && all(show_data != "none")) {
+  if (!is.null(show_data) && all(show_data != "none") && !all(show_data == FALSE)) {
+    rawdata <- .visualisation_recipe_getrawdata(x)
 
     # Default changes for binomial models
     shape <- 16
@@ -146,9 +174,13 @@ visualisation_recipe.estimate_predicted <- function(x,
     if (insight::model_info(info$model)$is_binomial && show_data %in% c("point", "points")) {
       shape <- "|"
       stroke <- 1
+
+      # Change scale to 1-2 in case outcome is factor (see #120)
+      if (!all(unique(rawdata[[y]]) %in% c(0, 1))) {
+        data[c("Predicted", "CI_low", "CI_high")] <- data[c("Predicted", "CI_low", "CI_high")] + 1
+      }
     }
 
-    rawdata <- .visualisation_recipe_getrawdata(x)
     for (i in show_data) {
       if (i %in% c("point", "points", "jitter")) {
         layers[[paste0("l", l)]] <- .visualisation_predicted_points(rawdata, x1, y, color, shape = shape, stroke = stroke, type = i, point = point)
@@ -161,21 +193,30 @@ visualisation_recipe.estimate_predicted <- function(x,
     }
   }
 
-  # Ribbon
-  if (is.null(alpha) && is.null(linetype)) {
-    layers[[paste0("l", l)]] <- .visualisation_predicted_ribbon(data, info, x1, fill = color, ribbon = ribbon)
-    l <- l + 1
+  # Uncertainty
+  if (is.null(alpha) && is.null(linetype)) { # If interaction, omit uncertainty
+    if ("iter_1" %in% names(data)) {
+      layers[[paste0("l", l)]] <- .visualisation_predicted_iterations(data, x1, fill = color, ribbon = ribbon)
+      l <- l + 1
+    } else {
+      ci_lows <- names(data)[grepl("CI_low", names(data), fixed = TRUE)]
+      ci_highs <- names(data)[grepl("CI_high", names(data), fixed = TRUE)]
+      for (i in 1:length(ci_lows)) {
+        layers[[paste0("l", l)]] <- .visualisation_predicted_ribbon(data, x1, y = "Predicted", fill = color, ci_low = ci_lows[i], ci_high = ci_highs[i], ribbon = ribbon)
+        l <- l + 1
+      }
+    }
   }
 
   # Line
-  layers[[paste0("l", l)]] <- .visualisation_predicted_line(data, info, x1, alpha, color, linetype, group = group, line = line)
+  layers[[paste0("l", l)]] <- .visualisation_predicted_line(data, x1, alpha, color, linetype, group = group, line = line)
   l <- l + 1
 
   # Labs
   layers[[paste0("l", l)]] <- .visualisation_predicted_labs(info, x1, y, labs = labs)
 
   # Out
-  class(layers) <- c("visualisation_recipe", class(layers))
+  class(layers) <- unique(c("visualisation_recipe", "see_visualisation_recipe", class(layers)))
   attr(layers, "data") <- data
   layers
 }
@@ -214,7 +255,7 @@ visualisation_recipe.estimate_predicted <- function(x,
 # Layer - Lines -------------------------------------------------------------
 
 
-.visualisation_predicted_line <- function(data, info, x1, alpha, color, linetype, group = NULL, line = NULL) {
+.visualisation_predicted_line <- function(data, x1, alpha, color, linetype, group = NULL, line = NULL) {
   if (is.null(group)) group <- alpha
   if (!is.null(alpha) && !is.null(color)) {
     group <- paste0("interaction(", alpha, ", ", color, ")")
@@ -239,18 +280,47 @@ visualisation_recipe.estimate_predicted <- function(x,
 
 # Layer - Ribbon -------------------------------------------------------------
 
-.visualisation_predicted_ribbon <- function(data, info, x1, fill, ribbon = NULL) {
+.visualisation_predicted_ribbon <- function(data, x1, y, fill, group = NULL, ci_low = "CI_low", ci_high = "CI_high", ribbon = NULL) {
   out <- list(
     geom = "ribbon",
     data = data,
     aes = list(
-      y = "Predicted",
+      y = y,
       x = x1,
-      ymin = "CI_low",
-      ymax = "CI_high",
-      fill = fill
+      ymin = ci_low,
+      ymax = ci_high,
+      fill = fill,
+      group = group
     ),
     alpha = 1 / 3
+  )
+  if (!is.null(ribbon)) out <- utils::modifyList(out, ribbon) # Update with additional args
+  out
+}
+
+# Layer - Ribbon -------------------------------------------------------------
+
+.visualisation_predicted_iterations <- function(data, x1, fill, ribbon = NULL) {
+  data <- bayestestR::reshape_iterations(data)
+
+  # Decrease alpha depending on number of iterations
+  alpha <- 1 / exp(log(max(data$iter_group), base = 6))
+
+  if (!is.null(fill)) {
+    data$iter_group <- paste0(data$iter_group, "_", data[[fill]])
+  }
+
+  out <- list(
+    geom = "line",
+    data = data,
+    aes = list(
+      y = "iter_value",
+      x = x1,
+      group = "iter_group",
+      color = fill
+    ),
+    size = 0.5,
+    alpha = alpha
   )
   if (!is.null(ribbon)) out <- utils::modifyList(out, ribbon) # Update with additional args
   out
@@ -271,4 +341,18 @@ visualisation_recipe.estimate_predicted <- function(x,
   )
   if (!is.null(labs)) out <- utils::modifyList(out, labs) # Update with additional args
   out
+}
+
+
+# Utilities ---------------------------------------------------------------
+
+
+
+.visualisation_recipe_getrawdata <- function(x, ...) {
+  rawdata <- insight::get_data(attributes(x)$model)
+
+  # Add response to data if not there
+  y <- insight::find_response(attributes(x)$model)
+  if (!y %in% names(rawdata)) rawdata[y] <- insight::get_response(attributes(x)$model)
+  rawdata
 }
