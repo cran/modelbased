@@ -34,12 +34,12 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
 
     # LMER4
     model <- lme4::lmer(Petal.Length ~ Petal.Width + (1 | Species), data = iris)
-    expect_equal(nrow(modelbased::estimate_link(model, length = 5)), 5)
+    expect_equal(nrow(modelbased::estimate_link(model, length = 5, verbose = FALSE)), 5)
     expect_equal(nrow(modelbased::estimate_link(model, include_random = TRUE, preserve_range = FALSE, length = 5)), 15)
 
     # GLMMTMB
     model <- suppressWarnings(glmmTMB::glmmTMB(Petal.Length ~ Petal.Width + (1 | Species), data = iris))
-    expect_equal(nrow(modelbased::estimate_link(model, length = 5)), 5)
+    expect_equal(nrow(modelbased::estimate_link(model, length = 5, verbose = FALSE)), 5)
     expect_equal(nrow(modelbased::estimate_link(model, include_random = TRUE, preserve_range = FALSE, length = 5)), 15)
 
     # MGCV
@@ -53,8 +53,8 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
     model <- gamm4::gamm4(Petal.Length ~ Petal.Width + s(Sepal.Length),
       random = ~ (1 | Species), data = iris
     )
-    expect_equal(nrow(modelbased::estimate_link(model, length = 3)), 9)
-    expect_equal(dim(modelbased::estimate_link(model, include_smooth = FALSE, length = 3)), c(3, 5))
+    expect_equal(nrow(modelbased::estimate_link(model, length = 3, verbose = FALSE)), 9)
+    expect_equal(dim(modelbased::estimate_link(model, include_smooth = FALSE, length = 3, verbose = FALSE)), c(3, 5))
 
 
     if (!osx) {
@@ -83,7 +83,7 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
 
     model <- suppressWarnings(rstanarm::stan_glm(mpg ~ as.factor(gear) / wt, data = mtcars, refresh = 0, iter = 200, chains = 2))
     estim <- estimate_prediction(model)
-    expect_equal(dim(estim), c(32, 7))
+    expect_equal(dim(estim), c(32, 8))
 
     model <- suppressWarnings(rstanarm::stan_glm(Sepal.Width ~ Petal.Width, data = iris, refresh = 0, iter = 200, chains = 2))
     estim <- estimate_link(model, keep_iterations = TRUE)
@@ -109,10 +109,12 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
   test_that("estimate_response - Frequentist", {
     model <- lm(mpg ~ wt + cyl, data = mtcars)
     estim <- estimate_expectation(model)
-    expect_equal(dim(estim), c(32, 7))
+    expect_equal(dim(estim), c(32, 8))
 
-    estim <- estimate_expectation(model, ci = NULL)
-    expect_equal(dim(estim), c(32, 5))
+    if (utils::packageVersion("insight") > "0.15.0") {
+      estim <- estimate_expectation(model, ci = NULL)
+      expect_equal(dim(estim), c(32, 5))
+    }
 
     model <- glm(vs ~ wt + cyl, data = mtcars, family = "binomial")
     estim <- estimate_link(model, target = "wt")
@@ -126,13 +128,13 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
     estim <- estimate_link(model)
     expect_equal(dim(estim), c(10, 5))
     estim <- estimate_expectation(model)
-    expect_equal(dim(estim), c(32, 7))
+    expect_equal(dim(estim), c(32, 8))
 
     model <- lme4::glmer(vs ~ cyl + (1 | gear), data = data, family = "binomial")
     estim <- estimate_link(model)
     expect_equal(dim(estim), c(10, 5))
     estim <- estimate_expectation(model)
-    expect_equal(dim(estim), c(32, 7))
+    expect_equal(dim(estim), c(32, 8))
 
     # model <- MASS::polr(Species ~ Sepal.Width, data = iris)
     # estim <- estimate_link(model)
