@@ -1,10 +1,11 @@
 #' Model-based response estimates and uncertainty
 #'
+#' @description
 #' After fitting a model, it is useful generate model-based estimates of the
 #' response variables for different combinations of predictor values. Such
 #' estimates can be used to make inferences about relationships between
 #' variables and to make predictions about individual cases.
-#' \cr\cr
+#'
 #' Model-based response estimates and uncertainty can be generated for both the
 #' conditional average response values (the regression line or expectation) and
 #' for predictions about individual cases. See below for details.
@@ -17,7 +18,7 @@
 #' regression line and **predicted values** for uncertainty in the individual
 #' case predictions.
 #'
-#' **Expected values** refer the the fitted regression line---the estimated
+#' **Expected values** refer to the fitted regression line - the estimated
 #' *average* response value (i.e., the "expectation") for individuals with
 #' specific predictor values. For example, in a linear model *y* = 2 + 3*x* +
 #' 4*z* + *e*, the estimated average *y* for individuals with *x* = 1 and *z* =
@@ -118,7 +119,7 @@
 #' response scales.
 #'
 #' Additional control parameters can be used to control results from
-#' [visualisation_matrix()] (when `data = "grid"`) and from
+#' [insight::get_datagrid()] (when `data = "grid"`) and from
 #' [insight::get_predicted()] (the function used internally to compute
 #' predictions).
 #'
@@ -131,9 +132,9 @@
 #' @inheritParams bayestestR::describe_posterior
 #' @param data A data frame with model's predictors to estimate the response. If
 #'   `NULL`, the model's data is used. If "grid", the model matrix is obtained
-#'   (through [visualisation_matrix()]).
+#'   (through [insight::get_datagrid()]).
 #' @param ... You can add all the additional control arguments from
-#'   [visualisation_matrix()] (used when `data = "grid"`) and
+#'   [insight::get_datagrid()] (used when `data = "grid"`) and
 #'   [insight::get_predicted()].
 #'
 #' @examples
@@ -321,9 +322,9 @@ estimate_relation <- function(model,
 
   # Get response for later residuals -------------
   if (!is.null(model_response) && model_response %in% names(data)) {
-    resid <- data[[model_response]]
+    response <- data[[model_response]]
   } else {
-    resid <- NULL
+    response <- NULL
   }
 
   # Keep only predictors (and response) --------
@@ -348,8 +349,8 @@ estimate_relation <- function(model,
   out <- cbind(data, out)
 
   # Add residuals
-  if (!is.null(resid)) {
-    out$Residuals <- out$Predicted - resid
+  if (!is.null(response)) {
+    out$Residuals <- response - out$Predicted
   }
 
   # Store relevant information

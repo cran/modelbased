@@ -41,7 +41,7 @@ estimate_relation(
 
 \item{data}{A data frame with model's predictors to estimate the response. If
 \code{NULL}, the model's data is used. If "grid", the model matrix is obtained
-(through \code{\link[=visualisation_matrix]{visualisation_matrix()}}).}
+(through \code{\link[insight:get_datagrid]{insight::get_datagrid()}}).}
 
 \item{ci}{Confidence Interval (CI) level. Default to \code{0.95} (\verb{95\%}).}
 
@@ -51,7 +51,7 @@ named \verb{iter_1, iter_2, ...}. You can reshape them to a long format by
 running \code{\link[bayestestR:reshape_iterations]{reshape_iterations()}}.}
 
 \item{...}{You can add all the additional control arguments from
-\code{\link[=visualisation_matrix]{visualisation_matrix()}} (used when \code{data = "grid"}) and
+\code{\link[insight:get_datagrid]{insight::get_datagrid()}} (used when \code{data = "grid"}) and
 \code{\link[insight:get_predicted]{insight::get_predicted()}}.}
 }
 \value{
@@ -62,7 +62,7 @@ After fitting a model, it is useful generate model-based estimates of the
 response variables for different combinations of predictor values. Such
 estimates can be used to make inferences about relationships between
 variables and to make predictions about individual cases.
-\cr\cr
+
 Model-based response estimates and uncertainty can be generated for both the
 conditional average response values (the regression line or expectation) and
 for predictions about individual cases. See below for details.
@@ -76,7 +76,7 @@ details on the difference between expected vs. predicted values and link vs.
 response scales.
 
 Additional control parameters can be used to control results from
-\code{\link[=visualisation_matrix]{visualisation_matrix()}} (when \code{data = "grid"}) and from
+\code{\link[insight:get_datagrid]{insight::get_datagrid()}} (when \code{data = "grid"}) and from
 \code{\link[insight:get_predicted]{insight::get_predicted()}} (the function used internally to compute
 predictions).
 
@@ -93,7 +93,7 @@ intervals. The major choices are \strong{expected values} for uncertainty in the
 regression line and \strong{predicted values} for uncertainty in the individual
 case predictions.
 
-\strong{Expected values} refer the the fitted regression line---the estimated
+\strong{Expected values} refer to the fitted regression line - the estimated
 \emph{average} response value (i.e., the "expectation") for individuals with
 specific predictor values. For example, in a linear model \emph{y} = 2 + 3\emph{x} +
 4\emph{z} + \emph{e}, the estimated average \emph{y} for individuals with \emph{x} = 1 and \emph{z} =

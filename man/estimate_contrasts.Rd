@@ -12,6 +12,7 @@ estimate_contrasts(
   transform = "none",
   ci = 0.95,
   adjust = "holm",
+  method = "pairwise",
   ...
 )
 }
@@ -46,7 +47,9 @@ comparisons. Can be one of "holm" (default), "tukey", "hochberg", "hommel",
 "bonferroni", "BH", "BY", "fdr" or "none". See the p-value adjustment
 section in the \code{emmeans::test} documentation.}
 
-\item{...}{Other arguments passed for instance to \code{\link[=visualisation_matrix]{visualisation_matrix()}}.}
+\item{method}{Contrast method. See same argument in \link[emmeans:contrast]{emmeans::contrast}.}
+
+\item{...}{Other arguments passed for instance to \code{\link[insight:get_datagrid]{insight::get_datagrid()}}.}
 }
 \value{
 A data frame of estimated contrasts.

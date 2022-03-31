@@ -1,10 +1,10 @@
 #' Easy 'emmeans' and 'emtrends'
 #'
-#' The `model_emmeans` function is a wrapper to facilitate the usage of
+#' The `get_emmeans()` function is a wrapper to facilitate the usage of
 #' `emmeans::emmeans()` and `emmeans::emtrends()`, providing a somewhat simpler
 #' and intuitive API to find the specifications and variables of interest. It is
 #' meanly made to for the developers to facilitate the organization and
-#' debugging, and end-users should rather use the `estimate_*` series of
+#' debugging, and end-users should rather use the `estimate_*()` series of
 #' functions.
 #'
 #' @param model A statistical model.
@@ -25,34 +25,34 @@
 #'   / mean / contrasts. Other predictors of the model that are not included
 #'   here will be collapsed and "averaged" over (the effect will be estimated
 #'   across them).
-#' @param ... Other arguments passed for instance to [visualisation_matrix()].
+#' @param ... Other arguments passed for instance to [insight::get_datagrid()].
 #'
 #' @examples
 #' model <- lm(Sepal.Length ~ Species + Petal.Width, data = iris)
 #'
 #' # By default, 'at' is set to "Species"
-#' model_emmeans(model)
+#' get_emmeans(model)
 #'
 #' # Overall mean (close to 'mean(iris$Sepal.Length)')
-#' model_emmeans(model, at = NULL)
+#' get_emmeans(model, at = NULL)
 #'
 #' # One can estimate marginal means at several values of a 'modulate' variable
-#' model_emmeans(model, at = "Petal.Width", length = 3)
+#' get_emmeans(model, at = "Petal.Width", length = 3)
 #'
 #' # Interactions
 #' model <- lm(Sepal.Width ~ Species * Petal.Length, data = iris)
 #'
-#' model_emmeans(model)
-#' model_emmeans(model, at = c("Species", "Petal.Length"), length = 2)
-#' model_emmeans(model, at = c("Species", "Petal.Length = c(1, 3, 5)"), length = 2)
+#' get_emmeans(model)
+#' get_emmeans(model, at = c("Species", "Petal.Length"), length = 2)
+#' get_emmeans(model, at = c("Species", "Petal.Length = c(1, 3, 5)"), length = 2)
 #' @export
-model_emmeans <- function(model,
-                          at = "auto",
-                          fixed = NULL,
-                          transform = "response",
-                          levels = NULL,
-                          modulate = NULL,
-                          ...) {
+get_emmeans <- function(model,
+                        at = "auto",
+                        fixed = NULL,
+                        transform = "response",
+                        levels = NULL,
+                        modulate = NULL,
+                        ...) {
 
   # Deprecation
   if (!is.null(levels) | !is.null(modulate)) {
@@ -89,6 +89,11 @@ model_emmeans <- function(model,
   estimated
 }
 
+#' @rdname get_emmeans
+#' @export
+model_emmeans <- get_emmeans
+
+
 # =========================================================================
 # HELPERS (guess arguments) -----------------------------------------------
 # =========================================================================
@@ -122,7 +127,7 @@ model_emmeans <- function(model,
       } else {
         target <- args$at
       }
-      grid <- visualisation_matrix(data, at = target, ...)
+      grid <- insight::get_datagrid(data, at = target, ...)
       args$at <- attributes(grid)$at_specs$varname
       args$data_matrix <- as.data.frame(grid[args$at])
       if (length(args$at) == 0) args$at <- NULL # Post-clean
@@ -131,7 +136,7 @@ model_emmeans <- function(model,
 
   # Deal with 'contrast'
   if (!is.null(args$contrast)) {
-    contrast <- visualisation_matrix(data, at = args$contrast, ...)
+    contrast <- insight::get_datagrid(data, at = args$contrast, ...)
     args$contrast <- attributes(contrast)$at_specs$varname
     contrast <- as.data.frame(contrast[args$contrast])
     if (is.null(args$data_matrix)) {
@@ -144,7 +149,7 @@ model_emmeans <- function(model,
 
   # Deal with 'fixed'
   if (!is.null(args$fixed)) {
-    fixed <- visualisation_matrix(data[args$fixed], at = NULL, ...)
+    fixed <- insight::get_datagrid(data[args$fixed], at = NULL, ...)
     if (is.null(args$data_matrix)) {
       args$data_matrix <- fixed
     } else {

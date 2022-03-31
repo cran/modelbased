@@ -12,7 +12,7 @@
 #' and [README examples](https://easystats.github.io/modelbased/index.html#features) for
 #' various examples, tutorials and use cases.
 #'
-#' @inheritParams model_emmeans
+#' @inheritParams get_emmeans
 #' @inheritParams estimate_means
 #'
 #' @details
@@ -112,7 +112,7 @@ estimate_slopes <- function(model,
                             ...) {
 
   # Sanitize arguments
-  estimated <- model_emtrends(model, trend, at, ...)
+  estimated <- get_emtrends(model, trend, at, ...)
   info <- attributes(estimated)
 
   # Summarize and clean
@@ -147,6 +147,8 @@ estimate_slopes <- function(model,
   trends
 }
 
+# Engine ===============================================================
+
 
 # Summary Method ===============================================================
 
@@ -169,10 +171,10 @@ summary.estimate_slopes <- function(object, ...) {
   } else {
     out <- data.frame()
     # Create vizmatrix of grouping variables
-    groups <- as.data.frame(visualisation_matrix(data[vars], factors = "all", numerics = "all"))
+    groups <- as.data.frame(insight::get_datagrid(data[vars], factors = "all", numerics = "all"))
     # Summarize all of the chunks
     for (i in 1:nrow(groups)) {
-      g <- data[datawizard::data_match(data, groups[i, , drop = FALSE]), , drop = FALSE]
+      g <- datawizard::data_match(data, groups[i, , drop = FALSE])
       out <- rbind(out, .estimate_slopes_summarize(g, trend = trend))
     }
     out <- datawizard::data_relocate(out, vars)
@@ -193,12 +195,15 @@ summary.estimate_slopes <- function(object, ...) {
 
   # Find beginnings and ends -----------------------
   # First row - starting point
+  signs <- sign(data[[datawizard::data_findcols(data, c("Coefficient", "Median", "Mean", "MAP_Estimate"))]])
+  sign <- signs[1]
   sig <- data$Confidence[1]
   starts <- 1
   ends <- nrow(data)
   # Iterate through all rows to find blocks
   for (i in 2:nrow(data)) {
-    if (data$Confidence[i] != sig) {
+    if ((data$Confidence[i] != sig) | ((signs[i] != sign) & data$Confidence[i] == "Uncertain")) {
+      sign <- signs[i]
       sig <- data$Confidence[i]
       starts <- c(starts, i)
       ends <- c(ends, i - 1)
@@ -210,7 +215,7 @@ summary.estimate_slopes <- function(object, ...) {
   out <- data.frame()
   for (g in 1:length(starts)) {
     dat <- data[starts[g]:ends[g], ]
-    dat <- as.data.frame(visualisation_matrix(dat, at = NULL, factors = "mode"))
+    dat <- as.data.frame(insight::get_datagrid(dat, at = NULL, factors = "mode"))
     dat <- cbind(data.frame("Start" = data[starts[g], trend], "End" = data[ends[g], trend]), dat)
     out <- rbind(out, dat)
   }
@@ -226,8 +231,6 @@ summary.estimate_slopes <- function(object, ...) {
     if ("p" %in% names(x)) confidence <- "p"
     if ("pd" %in% names(x)) confidence <- "pd"
   }
-
-
 
   if (confidence == "p") {
     sig <- tools::toTitleCase(effectsize::interpret_p(x$p, ...))

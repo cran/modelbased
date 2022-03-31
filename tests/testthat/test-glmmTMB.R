@@ -40,8 +40,8 @@ if (require("testthat") && require("modelbased") && require("glmmTMB") && requir
   })
 
   test_that("estimate_slope - glmmTMB", {
-    estim <- estimate_slopes(model2, trend = "cover", at = "mined", transform = "response")
-    estim2 <- as.data.frame(emmeans::emtrends(model2, "mined", var = "cover", transform = "response"))
+    estim <- estimate_slopes(model2, trend = "cover", at = "mined", regrid = "response")
+    estim2 <- as.data.frame(emmeans::emtrends(model2, "mined", var = "cover", regrid = "response"))
     expect_equal(estim$Coefficient, estim2$cover.trend, tolerance = 1e-2)
   })
 
@@ -53,7 +53,7 @@ if (require("testthat") && require("modelbased") && require("glmmTMB") && requir
 
   test_that("estimate_link - glmmTMB", {
     estim <- estimate_link(model2, preserve_range = FALSE)
-    expect_equal(dim(estim), c(20, 6))
+    expect_equal(dim(estim), c(20, 7))
   })
 
   test_that("estimate_response - glmmTMB", {

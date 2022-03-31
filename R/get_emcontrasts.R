@@ -1,34 +1,36 @@
-#' @rdname model_emmeans
+#' @rdname get_emmeans
 #'
 #' @param contrast A character vector indicating the name of the variable(s)
 #'   for which to compute the contrasts.
+#' @param method Contrast method. See same argument in [emmeans::contrast].
 #'
 #' @examples
 #' # Basic usage
 #' model <- lm(Sepal.Width ~ Species, data = iris)
-#' model_emcontrasts(model)
+#' get_emcontrasts(model)
 #'
 #' # Dealing with interactions
 #' model <- lm(Sepal.Width ~ Species * Petal.Width, data = iris)
 #' # By default: selects first factor
-#' model_emcontrasts(model)
+#' get_emcontrasts(model)
 #' # Can also run contrasts between points of numeric
-#' model_emcontrasts(model, contrast = "Petal.Width", length = 3)
+#' get_emcontrasts(model, contrast = "Petal.Width", length = 3)
 #' # Or both
-#' model_emcontrasts(model, contrast = c("Species", "Petal.Width"), length = 2)
+#' get_emcontrasts(model, contrast = c("Species", "Petal.Width"), length = 2)
 #' # Or with custom specifications
 #' estimate_contrasts(model, contrast = c("Species", "Petal.Width=c(1, 2)"))
 #' # Can fixate the numeric at a specific value
-#' model_emcontrasts(model, fixed = "Petal.Width")
+#' get_emcontrasts(model, fixed = "Petal.Width")
 #' # Or modulate it
-#' model_emcontrasts(model, at = "Petal.Width", length = 4)
+#' get_emcontrasts(model, at = "Petal.Width", length = 4)
 #' @export
-model_emcontrasts <- function(model,
-                              contrast = NULL,
-                              at = NULL,
-                              fixed = NULL,
-                              transform = "none",
-                              ...) {
+get_emcontrasts <- function(model,
+                            contrast = NULL,
+                            at = NULL,
+                            fixed = NULL,
+                            transform = "none",
+                            method = "pairwise",
+                            ...) {
 
   # check if available
   insight::check_if_installed("emmeans")
@@ -49,13 +51,17 @@ model_emcontrasts <- function(model,
   by <- args$emmeans_specs[!args$emmeans_specs %in% args$contrast]
   if (length(by) == 0) by <- NULL
 
-  contrasts <- emmeans::contrast(estimated, by = by, method = "pairwise", ...)
+  contrasts <- emmeans::contrast(estimated, by = by, method = method, ...)
 
   attr(contrasts, "contrast") <- args$contrast
   attr(contrasts, "at") <- args$at
   attr(contrasts, "fixed") <- args$fixed
   contrasts
 }
+
+#' @rdname get_emmeans
+#' @export
+model_emcontrasts <- get_emcontrasts
 
 
 # =========================================================================

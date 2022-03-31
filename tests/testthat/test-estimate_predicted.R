@@ -18,9 +18,6 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
     expect_equal(attributes(estim)$ci, c(0.90, 0.95))
     expect_equal(dim(estim), c(10, 7))
 
-    # vizdata <- visualisation_matrix(model)
-    # insight::get_predicted(model, as.data.frame(vizdata), ci = c(0.90, .95))
-
     # Range
     model <- lm(Petal.Length ~ Petal.Width * Species, data = iris)
     estim <- modelbased::estimate_relation(model, length = 10)
@@ -117,7 +114,7 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
     }
 
     model <- glm(vs ~ wt + cyl, data = mtcars, family = "binomial")
-    estim <- estimate_link(model, target = "wt")
+    estim <- estimate_link(model, at = "wt")
     expect_equal(dim(estim), c(10, 6))
 
 
@@ -126,13 +123,13 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
 
     model <- lme4::lmer(wt ~ cyl + (1 | gear), data = data)
     estim <- estimate_link(model)
-    expect_equal(dim(estim), c(10, 5))
+    expect_equal(dim(estim), c(10, 6))
     estim <- estimate_expectation(model)
     expect_equal(dim(estim), c(32, 8))
 
     model <- lme4::glmer(vs ~ cyl + (1 | gear), data = data, family = "binomial")
     estim <- estimate_link(model)
-    expect_equal(dim(estim), c(10, 5))
+    expect_equal(dim(estim), c(10, 6))
     estim <- estimate_expectation(model)
     expect_equal(dim(estim), c(32, 8))
 
