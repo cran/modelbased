@@ -30,21 +30,23 @@
 #' @examples
 #' model <- lm(Sepal.Length ~ Species + Petal.Width, data = iris)
 #'
-#' # By default, 'at' is set to "Species"
-#' get_emmeans(model)
+#' if (require("emmeans", quietly = TRUE)) {
+#'   # By default, 'at' is set to "Species"
+#'   get_emmeans(model)
 #'
-#' # Overall mean (close to 'mean(iris$Sepal.Length)')
-#' get_emmeans(model, at = NULL)
+#'   # Overall mean (close to 'mean(iris$Sepal.Length)')
+#'   get_emmeans(model, at = NULL)
 #'
-#' # One can estimate marginal means at several values of a 'modulate' variable
-#' get_emmeans(model, at = "Petal.Width", length = 3)
+#'   # One can estimate marginal means at several values of a 'modulate' variable
+#'   get_emmeans(model, at = "Petal.Width", length = 3)
 #'
-#' # Interactions
-#' model <- lm(Sepal.Width ~ Species * Petal.Length, data = iris)
+#'   # Interactions
+#'   model <- lm(Sepal.Width ~ Species * Petal.Length, data = iris)
 #'
-#' get_emmeans(model)
-#' get_emmeans(model, at = c("Species", "Petal.Length"), length = 2)
-#' get_emmeans(model, at = c("Species", "Petal.Length = c(1, 3, 5)"), length = 2)
+#'   get_emmeans(model)
+#'   get_emmeans(model, at = c("Species", "Petal.Length"), length = 2)
+#'   get_emmeans(model, at = c("Species", "Petal.Length = c(1, 3, 5)"), length = 2)
+#' }
 #' @export
 get_emmeans <- function(model,
                         at = "auto",
