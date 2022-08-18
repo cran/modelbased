@@ -9,7 +9,6 @@ reshape_grouplevel <- function(x, indices = "all", ...) {
 
 #' @export
 reshape_grouplevel.estimate_grouplevel <- function(x, indices = "all", ...) {
-
   # Find indices
   if (any(indices == "all")) {
     indices <- names(x)[!names(x) %in% c("Group", "Level", "Parameter", "CI")]
@@ -31,7 +30,6 @@ reshape_grouplevel.estimate_grouplevel <- function(x, indices = "all", ...) {
 
   # Loop through all groups
   for (group in groups) {
-
     # Subset coefficients
     data_group <- x[x$Group == group, ]
 
@@ -51,10 +49,10 @@ reshape_grouplevel.estimate_grouplevel <- function(x, indices = "all", ...) {
 
     data_wide <- datawizard::data_to_wide(
       data_group[c(group, newvars, "Parameter")],
-      rows_from = group,
+      id_cols = group,
       values_from = newvars,
-      colnames_from = "Parameter",
-      sep = "_"
+      names_from = "Parameter",
+      names_sep = "_"
     )
 
     # If nested, separate groups
@@ -67,7 +65,7 @@ reshape_grouplevel.estimate_grouplevel <- function(x, indices = "all", ...) {
     }
 
     # Merge while preserving order of original random
-    data[["__sort_id"]] <- 1:nrow(data)
+    data[["__sort_id"]] <- seq_len(nrow(data))
     data <- merge(data, data_wide, by = group, sort = FALSE)
     data <- data[order(data[["__sort_id"]]), ]
     data[["__sort_id"]] <- NULL

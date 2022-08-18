@@ -18,7 +18,6 @@
 #' }
 #' \donttest{
 #' if (require("see") && require("lme4")) {
-#'
 #'   # 2 random intercepts
 #'   model <- lmer(Reaction ~ Days + (1 | Subject) + (1 | Newfactor), data = data)
 #'   x <- estimate_grouplevel(model)
@@ -39,7 +38,7 @@ visualisation_recipe.estimate_grouplevel <- function(x,
                                                      ...) {
   data <- as.data.frame(x)
   # Fix order so that it's plotted with sorted levels
-  data$Level <- factor(data$Level, levels = sort(datawizard::to_numeric(unique(data$Level))))
+  data$Level <- factor(data$Level, levels = sort(.to_numeric(unique(data$Level))))
 
   layers <- list()
 

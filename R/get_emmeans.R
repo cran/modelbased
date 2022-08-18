@@ -12,8 +12,8 @@
 #'   "fixed" (i.e., maintained), so that the estimation is made at these values.
 #' @param transform Is passed to the `type` argument in
 #'   `emmeans::emmeans()`. See
-#'   [this
-#'   vignette](https://CRAN.R-project.org/package=emmeans/vignettes/transformations.html). Can be `"none"` (default for contrasts), `"response"`
+#'   [this vignette](https://CRAN.R-project.org/package=emmeans/vignettes/transformations.html).
+#'   Can be `"none"` (default for contrasts), `"response"`
 #'   (default for means), `"mu"`, `"unlink"`, `"log"`.
 #'   `"none"` will leave the values on scale of the linear predictors.
 #'   `"response"` will transform them on scale of the response variable.
@@ -55,9 +55,8 @@ get_emmeans <- function(model,
                         levels = NULL,
                         modulate = NULL,
                         ...) {
-
   # Deprecation
-  if (!is.null(levels) | !is.null(modulate)) {
+  if (!is.null(levels) || !is.null(modulate)) {
     warning("The `levels` and `modulate` arguments are deprecated. Please use `at` instead.")
     at <- c(levels, modulate)
   }
@@ -103,7 +102,6 @@ model_emmeans <- get_emmeans
 #' @importFrom stats model.frame
 #' @keywords internal
 .format_emmeans_arguments <- function(model, args, data, ...) {
-
   # Create the data_matrix
   # ---------------------------
   # data <- insight::get_data(model)
@@ -194,7 +192,6 @@ model_emmeans <- get_emmeans
                                      at = NULL,
                                      fixed = NULL,
                                      ...) {
-
   # Gather info
   predictors <- insight::find_predictors(model, effects = "fixed", flatten = TRUE, ...)
   data <- insight::get_data(model)

@@ -52,7 +52,6 @@
 #' }
 #' @export
 estimate_grouplevel <- function(model, type = "random", ...) {
-
   # Extract params
   params <- parameters::model_parameters(model,
     effects = "all",
@@ -60,8 +59,13 @@ estimate_grouplevel <- function(model, type = "random", ...) {
     ...
   )
 
+  # Re-add info
+  if (!"Group" %in% names(params)) params$Group <- attributes(params)$clean_parameters$Group
+  if (!"Level" %in% names(params)) params$Level <- attributes(params)$clean_parameters$Cleaned_Parameter
+
   # TODO: improve / add new printing that groups by group/level?
   random <- as.data.frame(params[params$Effects == "random", ])
+
 
   # Remove columns with only NaNs (as these are probably those of fixed effects)
   random[sapply(random, function(x) all(is.na(x)))] <- NULL
@@ -84,7 +88,7 @@ estimate_grouplevel <- function(model, type = "random", ...) {
   random <- random[c("Group", "Level", names(random)[!names(random) %in% c("Group", "Level")])]
 
   # Sort
-  random <- random[order(random$Group, datawizard::to_numeric(random$Level), random$Parameter), ]
+  random <- random[order(random$Group, .to_numeric(random$Level), random$Parameter), ]
 
   # Clean
   row.names(random) <- NULL

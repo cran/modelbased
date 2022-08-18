@@ -7,9 +7,15 @@ osx <- tryCatch({
   }
 })
 
-if (require("testthat") && require("modelbased") && require("gamm4") && require("rstanarm") && require("lme4") && require("glmmTMB") && require("mgcv") && require("MASS") && require("brms") && require("testthat")) {
+if (require("testthat") &&
+  require("modelbased") &&
+  require("gamm4") &&
+  require("rstanarm") &&
+  require("lme4") &&
+  require("glmmTMB") &&
+  require("mgcv") &&
+  require("testthat")) {
   test_that("estimate_relation - shape", {
-
     # CI
     model <- lm(Petal.Length ~ Petal.Width, data = iris)
     estim <- modelbased::estimate_relation(model, ci = 0.90)
@@ -28,7 +34,6 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
 
 
   test_that("estimate_link", {
-
     # LMER4
     model <- lme4::lmer(Petal.Length ~ Petal.Width + (1 | Species), data = iris)
     expect_equal(nrow(modelbased::estimate_link(model, length = 5, verbose = FALSE)), 5)
@@ -65,10 +70,6 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
     }
   })
 
-
-
-
-
   test_that("estimate_response - Bayesian", {
     model <- suppressWarnings(rstanarm::stan_glm(mpg ~ wt + poly(cyl, 2, raw = TRUE), data = mtcars, refresh = 0, iter = 200, chains = 2))
     estim <- estimate_prediction(model, seed = 333)
@@ -80,7 +81,7 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
 
     model <- suppressWarnings(rstanarm::stan_glm(mpg ~ as.factor(gear) / wt, data = mtcars, refresh = 0, iter = 200, chains = 2))
     estim <- estimate_prediction(model)
-    expect_equal(dim(estim), c(32, 8))
+    expect_equal(dim(estim), c(32, 7))
 
     model <- suppressWarnings(rstanarm::stan_glm(Sepal.Width ~ Petal.Width, data = iris, refresh = 0, iter = 200, chains = 2))
     estim <- estimate_link(model, keep_iterations = TRUE)
@@ -96,22 +97,16 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
     model <- rstanarm::stan_glm(mpg ~ disp, data = mtcars, algorithm = "meanfield", refresh = 0)
     estim <- estimate_link(model, keep_iterations = TRUE)
     expect_equal(dim(estim), c(10, 1005))
-
-    # model <- brms::brm(mpg ~ drat, data = mtcars, algorithm = "meanfield", refresh=0)
-    # estim <- estimate_link(model, keep_iterations = TRUE)
-    # expect_equal(dim(estim), c(25, 1004))
   })
 
 
   test_that("estimate_response - Frequentist", {
     model <- lm(mpg ~ wt + cyl, data = mtcars)
     estim <- estimate_expectation(model)
-    expect_equal(dim(estim), c(32, 8))
+    expect_equal(dim(estim), c(32, 7))
 
-    if (utils::packageVersion("insight") > "0.15.0") {
-      estim <- estimate_expectation(model, ci = NULL)
-      expect_equal(dim(estim), c(32, 5))
-    }
+    estim <- estimate_expectation(model, ci = NULL)
+    expect_equal(dim(estim), c(32, 4))
 
     model <- glm(vs ~ wt + cyl, data = mtcars, family = "binomial")
     estim <- estimate_link(model, at = "wt")
@@ -125,17 +120,25 @@ if (require("testthat") && require("modelbased") && require("gamm4") && require(
     estim <- estimate_link(model)
     expect_equal(dim(estim), c(10, 6))
     estim <- estimate_expectation(model)
-    expect_equal(dim(estim), c(32, 8))
+    expect_equal(dim(estim), c(32, 7))
 
     model <- lme4::glmer(vs ~ cyl + (1 | gear), data = data, family = "binomial")
     estim <- estimate_link(model)
     expect_equal(dim(estim), c(10, 6))
     estim <- estimate_expectation(model)
-    expect_equal(dim(estim), c(32, 8))
-
-    # model <- MASS::polr(Species ~ Sepal.Width, data = iris)
-    # estim <- estimate_link(model)
-    # # TODO: why no CI?
-    # expect_equal(dim(estim), c(10, 1))
+    expect_equal(dim(estim), c(32, 7))
   })
+
+
+  test_that("estimate_response - VisMatrix", {
+    m <- lm(Sepal.Length ~ Petal.Length * Petal.Width, data = iris)
+    vm <- visualisation_matrix(m, at = c("Petal.Length", "Petal.Width = seq(-3, 3)"))
+    estim <- estimate_relation(vm)
+    expect_equal(dim(estim), c(70, 6))
+    expect_equal(colnames(estim), c(
+      "Petal.Length", "Petal.Width", "Predicted", "SE", "CI_low",
+      "CI_high"
+    ))
+  })
+
 }

@@ -25,8 +25,19 @@ print.estimate_grouplevel <- print.estimate_contrasts
 # Format ------------------------------------------------------------------
 
 #' @export
-format.estimate_contrasts <- function(x, ...) {
-  insight::format_table(x, ...)
+format.estimate_contrasts <- function(x, format = NULL, ...) {
+  # don't print columns of adjusted_for variables
+  adjusted_for <- attr(x, "adjusted_for", exact = TRUE)
+  if (!is.null(adjusted_for) && all(adjusted_for %in% colnames(x))) {
+    # remove non-focal terms from data frame
+    x[adjusted_for] <- NULL
+  }
+
+  if (!is.null(format) && format %in% c("md", "markdown", "html")) {
+    insight::format_table(x, ci_brackets = c("(", ")"), ...)
+  } else {
+    insight::format_table(x, ...)
+  }
 }
 
 #' @export

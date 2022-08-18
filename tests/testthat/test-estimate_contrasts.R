@@ -1,6 +1,5 @@
 if (require("testthat") && require("modelbased") && require("logspline") && require("rstanarm") && require("insight") && require("lme4")) {
   test_that("estimate_contrasts - Frequentist", {
-
     # One factor
     model <- lm(Sepal.Width ~ Species, data = iris)
 
@@ -134,9 +133,9 @@ if (require("testthat") && require("modelbased") && require("logspline") && requ
     estim <- estimate_contrasts(model, transform = "response")
     expect_equal(dim(estim), c(3, 7))
 
-    estim <- estimate_contrasts(model, test = "bf")
+    estim <- suppressWarnings(estimate_contrasts(model, test = "bf"))
     expect_equal(dim(estim), c(3, 6))
-    estim <- estimate_contrasts(model, transform = "response", test = "bf")
+    estim <- suppressWarnings(estimate_contrasts(model, transform = "response", test = "bf"))
     expect_equal(dim(estim), c(3, 6))
   })
 

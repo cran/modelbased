@@ -91,7 +91,6 @@ if (require("see") && require("lme4")) {
 }
 \donttest{
 if (require("see") && require("lme4")) {
-
   # 2 random intercepts
   model <- lmer(Reaction ~ Days + (1 | Subject) + (1 | Newfactor), data = data)
   x <- estimate_grouplevel(model)
@@ -107,7 +106,6 @@ if (require("see") && require("lme4")) {
 # estimate_means
 # ==============================================
 if (require("ggplot2")) {
-
   # Simple Model ---------------
   x <- estimate_means(lm(Sepal.Width ~ Species, data = iris))
   layers <- visualisation_recipe(x)
@@ -116,7 +114,6 @@ if (require("ggplot2")) {
 }
 \donttest{
 if (require("ggplot2")) {
-
   # Customize aesthetics
   layers <- visualisation_recipe(x,
     jitter = list(width = 0.03, color = "red"),
@@ -153,7 +150,6 @@ if (require("ggplot2")) {
 # estimate_relation, estimate_response, ...
 # ==============================================
 if (require("ggplot2")) {
-
   # Simple Model ---------------
   x <- estimate_relation(lm(mpg ~ wt, data = mtcars))
   layers <- visualisation_recipe(x)
@@ -162,18 +158,19 @@ if (require("ggplot2")) {
 }
 \donttest{
 if (require("ggplot2")) {
+  # Customize aesthetics ----------
 
-  # Customize aesthetics
   layers <- visualisation_recipe(x,
     point = list(color = "red", alpha = 0.6, size = 3),
-    line = list(color = "blue", size = 4),
+    line = list(color = "blue", size = 3),
     ribbon = list(fill = "green", alpha = 0.7),
     labs = list(subtitle = "Oh yeah!")
   )
   layers
   plot(layers)
 
-  # Customize raw data
+  # Customize raw data -------------
+
   plot(visualisation_recipe(x, show_data = "none"))
   plot(visualisation_recipe(x, show_data = c("density_2d", "points")))
   plot(visualisation_recipe(x, show_data = "density_2d_filled"))
@@ -182,10 +179,20 @@ if (require("ggplot2")) {
     scale_x_continuous(expand = c(0, 0)) +
     scale_y_continuous(expand = c(0, 0))
 
+  # Single predictors examples -----------
+
+  plot(estimate_relation(lm(Sepal.Length ~ Sepal.Width, data = iris)))
+  plot(estimate_relation(lm(Sepal.Length ~ Species, data = iris)))
+
   # 2-ways interaction ------------
 
   # Numeric * numeric
   x <- estimate_relation(lm(mpg ~ wt * qsec, data = mtcars))
+  layers <- visualisation_recipe(x)
+  plot(layers)
+
+  # Numeric * factor
+  x <- estimate_relation(lm(Sepal.Width ~ Sepal.Length * Species, data = iris))
   layers <- visualisation_recipe(x)
   plot(layers)
 
@@ -202,7 +209,7 @@ if (require("ggplot2")) {
   data$new_factor <- as.factor(rep(c("A", "B"), length.out = nrow(mtcars)))
 
   # Numeric * numeric * numeric
-  x <- estimate_relation(lm(mpg ~ wt * qsec * hp, data = data))
+  x <- estimate_relation(lm(mpg ~ wt * qsec * hp, data = data), length=c(5, 3, 20))
   layers <- visualisation_recipe(x)
   plot(layers)
 
@@ -216,14 +223,22 @@ if (require("ggplot2")) {
   layers <- visualisation_recipe(x)
   plot(layers)
 
+  # Factor * numeric * numeric
+  x <- estimate_relation(lm(mpg ~ cyl * qsec * hp, data = data))
+  layers <- visualisation_recipe(x)
+  plot(layers) +
+    scale_size_continuous(range=c(0.2, 1))
+
   # GLMs ---------------------
   x <- estimate_relation(glm(vs ~ mpg, data = mtcars, family = "binomial"))
   plot(visualisation_recipe(x))
   plot(visualisation_recipe(x, show_data = "jitter", point = list(height = 0.03)))
 
   # Multiple CIs ---------------------
-  x <- estimate_relation(lm(mpg ~ disp, data = mtcars), ci = c(.50, .80, .95))
-  plot(x)
+  plot(estimate_relation(lm(mpg ~ disp, data = mtcars),
+       ci = c(.50, .80, .95)))
+  plot(estimate_relation(lm(Sepal.Length ~ Species, data = iris),
+       ci = c(0.5, 0.7, 0.95)))
 }
 
 # Bayesian models ---------------------
@@ -231,12 +246,12 @@ if (require("ggplot2") && require("rstanarm")) {
   model <- rstanarm::stan_glm(mpg ~ wt, data = mtcars, refresh = 0)
 
   # Plot individual draws instead of regular ribbon
-  x <- estimate_relation(model, keep_iterations = TRUE)
+  x <- estimate_relation(model, keep_iterations = 100)
   layers <- visualisation_recipe(x, ribbon = list(color = "red"))
   plot(layers)
 
   model <- rstanarm::stan_glm(Sepal.Width ~ Species * Sepal.Length, data = iris, refresh = 0)
-  plot(estimate_relation(model, keep_iterations = TRUE))
+  plot(estimate_relation(model, keep_iterations = 100))
 }
 }
 # ==============================================
@@ -258,7 +273,8 @@ if (require("ggplot2")) {
   x <- estimate_slopes(model, at = c("Sepal.Width", "Species"))
   plot(visualisation_recipe(x))
 }
-\donttest{
+\dontrun{
+# TODO: fails with latest emmeans (1.8.0)
 if (require("mgcv")) {
   data <- iris
   data$Petal.Length <- data$Petal.Length^2
