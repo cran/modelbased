@@ -11,8 +11,9 @@ estimate_contrasts(
   fixed = NULL,
   transform = "none",
   ci = 0.95,
-  adjust = "holm",
+  p_adjust = "holm",
   method = "pairwise",
+  adjust = NULL,
   ...
 )
 }
@@ -43,12 +44,14 @@ probabilities.}
 
 \item{ci}{Confidence Interval (CI) level. Default to \code{0.95} (\verb{95\%}).}
 
-\item{adjust}{The p-values adjustment method for frequentist multiple
+\item{p_adjust}{The p-values adjustment method for frequentist multiple
 comparisons. Can be one of "holm" (default), "tukey", "hochberg", "hommel",
 "bonferroni", "BH", "BY", "fdr" or "none". See the p-value adjustment
 section in the \code{emmeans::test} documentation.}
 
 \item{method}{Contrast method. See same argument in \link[emmeans:contrast]{emmeans::contrast}.}
+
+\item{adjust}{Deprecated in favour of \code{p_adjust}.}
 
 \item{...}{Other arguments passed for instance to \code{\link[insight:get_datagrid]{insight::get_datagrid()}}.}
 }
@@ -117,58 +120,62 @@ the effect of x averaged over all conditions, or instead within each
 condition (\code{using [estimate_slopes]}).
 }
 \examples{
-library(modelbased)
-if (require("emmeans", quietly = TRUE)) {
+\dontshow{if (requireNamespace("emmeans", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 # Basic usage
 model <- lm(Sepal.Width ~ Species, data = iris)
 estimate_contrasts(model)
 
 # Dealing with interactions
 model <- lm(Sepal.Width ~ Species * Petal.Width, data = iris)
+
 # By default: selects first factor
 estimate_contrasts(model)
+
 # Can also run contrasts between points of numeric
 estimate_contrasts(model, contrast = "Petal.Width", length = 4)
+
 # Or both
 estimate_contrasts(model, contrast = c("Species", "Petal.Width"), length = 2)
+
 # Or with custom specifications
 estimate_contrasts(model, contrast = c("Species", "Petal.Width=c(1, 2)"))
+
 # Can fixate the numeric at a specific value
 estimate_contrasts(model, fixed = "Petal.Width")
+
 # Or modulate it
 estimate_contrasts(model, at = "Petal.Width", length = 4)
 
 # Standardized differences
 estimated <- estimate_contrasts(lm(Sepal.Width ~ Species, data = iris))
 standardize(estimated)
-
+\dontshow{\}) # examplesIf}
+\dontshow{if (requireNamespace("lme4", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 # Other models (mixed, Bayesian, ...)
-if (require("lme4")) {
-  data <- iris
-  data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
+data <- iris
+data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
 
-  model <- lmer(Sepal.Width ~ Species + (1 | Petal.Length_factor), data = data)
-  estimate_contrasts(model)
-}
+model <- lme4::lmer(Sepal.Width ~ Species + (1 | Petal.Length_factor), data = data)
+estimate_contrasts(model)
+\dontshow{\}) # examplesIf}
+\dontshow{if (requireNamespace("rstanarm", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+library(rstanarm)
 
 data <- mtcars
 data$cyl <- as.factor(data$cyl)
 data$am <- as.factor(data$am)
 \dontrun{
-if (require("rstanarm")) {
-  model <- stan_glm(mpg ~ cyl * am, data = data, refresh = 0)
-  estimate_contrasts(model)
-  estimate_contrasts(model, fixed = "am")
+model <- stan_glm(mpg ~ cyl * am, data = data, refresh = 0)
+estimate_contrasts(model)
+estimate_contrasts(model, fixed = "am")
 
-  model <- stan_glm(mpg ~ cyl * wt, data = data, refresh = 0)
-  estimate_contrasts(model)
-  estimate_contrasts(model, fixed = "wt")
-  estimate_contrasts(model, at = "wt", length = 4)
+model <- stan_glm(mpg ~ cyl * wt, data = data, refresh = 0)
+estimate_contrasts(model)
+estimate_contrasts(model, fixed = "wt")
+estimate_contrasts(model, at = "wt", length = 4)
 
-  model <- stan_glm(Sepal.Width ~ Species + Petal.Width + Petal.Length, data = iris, refresh = 0)
-  estimate_contrasts(model, at = "Petal.Length", test = "bf")
+model <- stan_glm(Sepal.Width ~ Species + Petal.Width + Petal.Length, data = iris, refresh = 0)
+estimate_contrasts(model, at = "Petal.Length", test = "bf")
 }
-}
-}
-
+\dontshow{\}) # examplesIf}
 }

@@ -316,7 +316,7 @@ estimate_relation <- function(model,
     } else if (insight::is_model(data_original)) {
       model <- data_original
     } else {
-      stop("A model must be passed to make predictions.")
+      stop("A model must be passed to make predictions.", call. = FALSE)
     }
   }
 
@@ -327,7 +327,9 @@ estimate_relation <- function(model,
     if (is_grid) {
       data <- visualisation_matrix(model, reference = model_data, include_response = is_nullmodel, ...)
     } else {
-      stop('The `data` argument must either NULL, "grid" or another data.frame.')
+      stop(insight::format_message(
+        "The `data` argument must either NULL, \"grid\" or another data frame."
+      ), call. = FALSE)
     }
   }
 
@@ -355,8 +357,6 @@ estimate_relation <- function(model,
     data = data,
     predict = predict,
     ci = ci,
-    dispersion_method = "mad",
-    ci_method = "hdi",
     ...
   )
   out <- as.data.frame(predictions, keep_iterations = keep_iterations)
@@ -408,7 +408,11 @@ estimate_relation <- function(model,
           predictions[[i]][1]
         })
         # at values to names of non-focal terms (footer)
-        grid_specs$adjusted_for <- sprintf("%s (%.2g)", grid_specs$adjusted_for, adjusted_values)
+        if(is.numeric(adjusted_values)) {
+          grid_specs$adjusted_for <- sprintf("%s (%.2g)", grid_specs$adjusted_for, adjusted_values)
+        } else {
+          grid_specs$adjusted_for <- sprintf("%s (%s)", grid_specs$adjusted_for, adjusted_values)
+        }
       }
       footer <- paste0(footer, "Predictors controlled: ", paste0(grid_specs$adjusted_for, collapse = ", "), "\n")
     }

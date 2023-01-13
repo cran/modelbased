@@ -7,7 +7,8 @@
 #'
 #' @inheritParams get_emmeans
 #' @inheritParams parameters::model_parameters.default
-#'
+#' @param backend Whether to use 'emmeans' or 'marginaleffects' as a backend.
+#'  The latter is experimental and some features might not work.
 #' @inherit estimate_slopes details
 #'
 #' @examples
@@ -51,36 +52,40 @@ estimate_means <- function(model,
                            fixed = NULL,
                            transform = "response",
                            ci = 0.95,
+                           backend = "emmeans",
                            ...) {
 
-  # Run emmeans
-  estimated <- get_emmeans(model, at, fixed, transform = transform, ...)
-  info <- attributes(estimated)
+  # Compute means
+  if (backend == "emmeans") {
+    estimated <- get_emmeans(model, at, fixed, transform = transform, ...)
 
-  # Summarize and clean
-  if (insight::model_info(model)$is_bayesian) {
-    means <- bayestestR::describe_posterior(estimated,
-      test = NULL,
-      rope_range = NULL,
-      ci = ci,
-      ...
-    )
-    means <- cbind(estimated@grid, means)
-    means$`.wgt.` <- NULL # Drop the weight column
-    means <- .clean_names_bayesian(means, model, transform, type = "mean")
+    # Summarize and clean
+    if (insight::model_info(model)$is_bayesian) {
+      means <- parameters::parameters(estimated, ci = ci, ...)
+      means <- .clean_names_bayesian(means, model, transform, type = "mean")
+      means <- cbind(estimated@grid, means)
+      means$`.wgt.` <- NULL # Drop the weight column
+    } else {
+      means <- as.data.frame(stats::confint(estimated, level = ci))
+      means$df <- NULL
+      means <- .clean_names_frequentist(means)
+    }
+    # Remove the "1 - overall" column that can appear in cases like at = NULL
+    means <- means[names(means) != "1"]
+
+    info <- attributes(estimated)
   } else {
-    means <- as.data.frame(stats::confint(estimated, level = ci))
-    means$df <- NULL
-    means <- .clean_names_frequentist(means)
+    means <- .get_marginalmeans(model, at, fixed, transform = transform, ...)
+
+    info <- attributes(means)
   }
-  # Remove the "1 - overall" column that can appear in cases like at = NULL
-  means <- means[names(means) != "1"]
 
   # Restore factor levels
   means <- datawizard::data_restoretype(means, insight::get_data(model))
 
 
   # Table formatting
+
   attr(means, "table_title") <- c("Estimated Marginal Means", "blue")
   attr(means, "table_footer") <- .estimate_means_footer(means, info$at, type = "means")
 
@@ -100,67 +105,12 @@ estimate_means <- function(model,
 }
 
 
-# Clean names -------------------------------------------------------------
-
-
-#' @keywords internal
-.clean_names_frequentist <- function(means) {
-  names(means)[names(means) == "emmean"] <- "Mean"
-  names(means)[names(means) == "response"] <- "Mean"
-  names(means)[names(means) == "prob"] <- "Probability"
-  names(means)[names(means) == "estimate"] <- "Difference"
-  names(means)[names(means) == "odds.ratio"] <- "Odds_ratio"
-  names(means)[names(means) == "ratio"] <- "Ratio"
-  names(means)[names(means) == "t.ratio"] <- "t"
-  names(means)[names(means) == "z.ratio"] <- "z"
-  names(means)[names(means) == "p.value"] <- "p"
-  names(means)[names(means) == "lower.CL"] <- "CI_low"
-  names(means)[names(means) == "upper.CL"] <- "CI_high"
-  names(means)[names(means) == "asymp.LCL"] <- "CI_low"
-  names(means)[names(means) == "asymp.UCL"] <- "CI_high"
-  means
-}
-
-
-
-
-#' @keywords internal
-.clean_names_bayesian <- function(means, model, transform, type = "mean") {
-  vars <- names(means)[names(means) %in% c("Median", "Mean", "MAP")]
-
-  if (length(vars) == 1) {
-    if (type == "contrast") {
-      if (insight::model_info(model)$is_logit && transform == "response") {
-        names(means)[names(means) == vars] <- "Odds_ratio"
-      } else if (insight::model_info(model)$is_poisson && transform == "response") {
-        names(means)[names(means) == vars] <- "Ratio"
-      } else {
-        names(means)[names(means) == vars] <- "Difference"
-      }
-    } else if (type == "mean") {
-      if (insight::model_info(model)$is_logit && transform == "response") {
-        names(means)[names(means) == vars] <- "Probability"
-      } else {
-        names(means)[names(means) == vars] <- "Mean"
-      }
-    } else {
-      names(means)[names(means) == vars] <- "Coefficient"
-    }
-  }
-
-  means$CI <- NULL
-  means$ROPE_CI <- NULL
-  means$ROPE_low <- NULL
-  means$ROPE_high <- NULL
-  means$Parameter <- NULL
-  means
-}
 
 
 # Table Formating ----------------------------------------------------------
 
 
-.estimate_means_footer <- function(x, at = NULL, type = "means", adjust = NULL) {
+.estimate_means_footer <- function(x, at = NULL, type = "means", p_adjust = NULL) {
   table_footer <- paste("\nMarginal", type)
 
   # Levels
@@ -173,11 +123,11 @@ estimate_means <- function(model,
   }
 
   # P-value adjustment footer
-  if (!is.null(adjust) && "p" %in% names(x)) {
-    if (adjust == "none") {
+  if (!is.null(p_adjust) && "p" %in% names(x)) {
+    if (p_adjust == "none") {
       table_footer <- paste0(table_footer, "\np-values are uncorrected.")
     } else {
-      table_footer <- paste0(table_footer, "\np-value adjustment method: ", parameters::format_p_adjust(adjust))
+      table_footer <- paste0(table_footer, "\np-value adjustment method: ", parameters::format_p_adjust(p_adjust))
     }
   }
 

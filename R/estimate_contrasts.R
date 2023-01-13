@@ -6,32 +6,37 @@
 #'
 #' @inheritParams estimate_means
 #' @inheritParams get_emcontrasts
-#' @param adjust The p-values adjustment method for frequentist multiple
+#' @param p_adjust The p-values adjustment method for frequentist multiple
 #'   comparisons. Can be one of "holm" (default), "tukey", "hochberg", "hommel",
 #'   "bonferroni", "BH", "BY", "fdr" or "none". See the p-value adjustment
 #'   section in the `emmeans::test` documentation.
+#' @param adjust Deprecated in favour of `p_adjust`.
 #'
 #' @inherit estimate_slopes details
 #'
-#' @examples
-#' library(modelbased)
-#' if (require("emmeans", quietly = TRUE)) {
+#' @examplesIf requireNamespace("emmeans", quietly = TRUE)
 #' # Basic usage
 #' model <- lm(Sepal.Width ~ Species, data = iris)
 #' estimate_contrasts(model)
 #'
 #' # Dealing with interactions
 #' model <- lm(Sepal.Width ~ Species * Petal.Width, data = iris)
+#'
 #' # By default: selects first factor
 #' estimate_contrasts(model)
+#'
 #' # Can also run contrasts between points of numeric
 #' estimate_contrasts(model, contrast = "Petal.Width", length = 4)
+#'
 #' # Or both
 #' estimate_contrasts(model, contrast = c("Species", "Petal.Width"), length = 2)
+#'
 #' # Or with custom specifications
 #' estimate_contrasts(model, contrast = c("Species", "Petal.Width=c(1, 2)"))
+#'
 #' # Can fixate the numeric at a specific value
 #' estimate_contrasts(model, fixed = "Petal.Width")
+#'
 #' # Or modulate it
 #' estimate_contrasts(model, at = "Petal.Width", length = 4)
 #'
@@ -39,33 +44,32 @@
 #' estimated <- estimate_contrasts(lm(Sepal.Width ~ Species, data = iris))
 #' standardize(estimated)
 #'
+#' @examplesIf requireNamespace("lme4", quietly = TRUE)
 #' # Other models (mixed, Bayesian, ...)
-#' if (require("lme4")) {
-#'   data <- iris
-#'   data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
+#' data <- iris
+#' data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
 #'
-#'   model <- lmer(Sepal.Width ~ Species + (1 | Petal.Length_factor), data = data)
-#'   estimate_contrasts(model)
-#' }
+#' model <- lme4::lmer(Sepal.Width ~ Species + (1 | Petal.Length_factor), data = data)
+#' estimate_contrasts(model)
+#'
+#' @examplesIf requireNamespace("rstanarm", quietly = TRUE)
+#' library(rstanarm)
 #'
 #' data <- mtcars
 #' data$cyl <- as.factor(data$cyl)
 #' data$am <- as.factor(data$am)
 #' \dontrun{
-#' if (require("rstanarm")) {
-#'   model <- stan_glm(mpg ~ cyl * am, data = data, refresh = 0)
-#'   estimate_contrasts(model)
-#'   estimate_contrasts(model, fixed = "am")
+#' model <- stan_glm(mpg ~ cyl * am, data = data, refresh = 0)
+#' estimate_contrasts(model)
+#' estimate_contrasts(model, fixed = "am")
 #'
-#'   model <- stan_glm(mpg ~ cyl * wt, data = data, refresh = 0)
-#'   estimate_contrasts(model)
-#'   estimate_contrasts(model, fixed = "wt")
-#'   estimate_contrasts(model, at = "wt", length = 4)
+#' model <- stan_glm(mpg ~ cyl * wt, data = data, refresh = 0)
+#' estimate_contrasts(model)
+#' estimate_contrasts(model, fixed = "wt")
+#' estimate_contrasts(model, at = "wt", length = 4)
 #'
-#'   model <- stan_glm(Sepal.Width ~ Species + Petal.Width + Petal.Length, data = iris, refresh = 0)
-#'   estimate_contrasts(model, at = "Petal.Length", test = "bf")
-#' }
-#' }
+#' model <- stan_glm(Sepal.Width ~ Species + Petal.Width + Petal.Length, data = iris, refresh = 0)
+#' estimate_contrasts(model, at = "Petal.Length", test = "bf")
 #' }
 #'
 #' @return A data frame of estimated contrasts.
@@ -76,17 +80,24 @@ estimate_contrasts <- function(model,
                                fixed = NULL,
                                transform = "none",
                                ci = 0.95,
-                               adjust = "holm",
+                               p_adjust = "holm",
                                method = "pairwise",
+                               adjust = NULL,
                                ...) {
+  # Deprecation
+  if (!is.null(adjust)) {
+    warning("The `adjust` argument is deprecated. Please write `p_adjust` instead.", call. = FALSE)
+    p_adjust <- adjust
+  }
 
   # Run emmeans
   estimated <- get_emcontrasts(model,
     contrast = contrast,
     at = at,
     fixed = fixed,
-    transform = "none",
+    transform = transform,
     method = method,
+    adjust = p_adjust,
     ...
   )
 
@@ -98,7 +109,7 @@ estimate_contrasts <- function(model,
     contrasts <- cbind(estimated@grid, contrasts)
     contrasts <- .clean_names_bayesian(contrasts, model, transform, type = "contrast")
   } else {
-    contrasts <- as.data.frame(merge(as.data.frame(estimated), stats::confint(estimated, level = ci, adjust = adjust)))
+    contrasts <- as.data.frame(merge(as.data.frame(estimated), stats::confint(estimated, level = ci, adjust = p_adjust)))
     contrasts <- .clean_names_frequentist(contrasts)
   }
   contrasts$null <- NULL # introduced in emmeans 1.6.1 (#115)
@@ -128,7 +139,7 @@ estimate_contrasts <- function(model,
     contrasts,
     info$contrast,
     type = "contrasts",
-    adjust = adjust
+    p_adjust = p_adjust
   )
 
   # Add attributes
@@ -139,7 +150,7 @@ estimate_contrasts <- function(model,
   attr(contrasts, "at") <- info$at
   attr(contrasts, "fixed") <- info$fixed
   attr(contrasts, "contrast") <- info$contrast
-  attr(contrasts, "adjust") <- adjust
+  attr(contrasts, "p_adjust") <- p_adjust
 
 
   # Output

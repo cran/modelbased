@@ -1,4 +1,8 @@
-if (require("testthat") && require("modelbased") && require("rstanarm") && require("insight")) {
+if (
+
+  require("rstanarm") &&
+
+    require("emmeans")) {
   test_that("estimate_slopes", {
     model <- lm(Sepal.Width ~ Species * Petal.Length, data = iris)
 
