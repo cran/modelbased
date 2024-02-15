@@ -14,7 +14,7 @@
 #'
 #' @inherit estimate_slopes details
 #'
-#' @examplesIf requireNamespace("emmeans", quietly = TRUE)
+#' @examplesIf require("emmeans", quietly = TRUE)
 #' # Basic usage
 #' model <- lm(Sepal.Width ~ Species, data = iris)
 #' estimate_contrasts(model)
@@ -44,7 +44,7 @@
 #' estimated <- estimate_contrasts(lm(Sepal.Width ~ Species, data = iris))
 #' standardize(estimated)
 #'
-#' @examplesIf requireNamespace("lme4", quietly = TRUE)
+#' @examplesIf require("lme4", quietly = TRUE) && require("emmeans", quietly = TRUE)
 #' # Other models (mixed, Bayesian, ...)
 #' data <- iris
 #' data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
@@ -52,13 +52,14 @@
 #' model <- lme4::lmer(Sepal.Width ~ Species + (1 | Petal.Length_factor), data = data)
 #' estimate_contrasts(model)
 #'
-#' @examplesIf requireNamespace("rstanarm", quietly = TRUE)
+#' @examplesIf require("rstanarm", quietly = TRUE) && require("emmeans", quietly = TRUE)
 #' library(rstanarm)
 #'
+#' \donttest{
 #' data <- mtcars
 #' data$cyl <- as.factor(data$cyl)
 #' data$am <- as.factor(data$am)
-#' \dontrun{
+#'
 #' model <- stan_glm(mpg ~ cyl * am, data = data, refresh = 0)
 #' estimate_contrasts(model)
 #' estimate_contrasts(model, fixed = "am")
@@ -86,7 +87,7 @@ estimate_contrasts <- function(model,
                                ...) {
   # Deprecation
   if (!is.null(adjust)) {
-    warning("The `adjust` argument is deprecated. Please write `p_adjust` instead.", call. = FALSE)
+    insight::format_warning("The `adjust` argument is deprecated. Please write `p_adjust` instead.")
     p_adjust <- adjust
   }
 
@@ -109,7 +110,10 @@ estimate_contrasts <- function(model,
     contrasts <- cbind(estimated@grid, contrasts)
     contrasts <- .clean_names_bayesian(contrasts, model, transform, type = "contrast")
   } else {
-    contrasts <- as.data.frame(merge(as.data.frame(estimated), stats::confint(estimated, level = ci, adjust = p_adjust)))
+    contrasts <- as.data.frame(merge(
+      as.data.frame(estimated),
+      stats::confint(estimated, level = ci, adjust = p_adjust)
+    ))
     contrasts <- .clean_names_frequentist(contrasts)
   }
   contrasts$null <- NULL # introduced in emmeans 1.6.1 (#115)
@@ -125,8 +129,8 @@ estimate_contrasts <- function(model,
   level_cols <- strsplit(as.character(contrasts$contrast), " - |\\/")
   level_cols <- data.frame(do.call(rbind, lapply(level_cols, trimws)))
   names(level_cols) <- c("Level1", "Level2")
-  level_cols$Level1 <- gsub(",", " - ", level_cols$Level1)
-  level_cols$Level2 <- gsub(",", " - ", level_cols$Level2)
+  level_cols$Level1 <- gsub(",", " - ", level_cols$Level1, fixed = TRUE)
+  level_cols$Level2 <- gsub(",", " - ", level_cols$Level2, fixed = TRUE)
 
   # Merge levels and rest
   contrasts$contrast <- NULL

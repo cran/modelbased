@@ -11,9 +11,8 @@
 #'  The latter is experimental and some features might not work.
 #' @inherit estimate_slopes details
 #'
-#' @examples
+#' @examplesIf require("emmeans", quietly = TRUE)
 #' library(modelbased)
-#' if (require("emmeans")) {
 #'
 #' # Frequentist models
 #' # -------------------
@@ -30,22 +29,22 @@
 #'
 #' # Methods that can be applied to it:
 #' means <- estimate_means(model, fixed = "Sepal.Width")
-#' if (require("see")) {
-#'   plot(means) # which runs visualisation_recipe()
-#' }
-#' standardize(means)
-#' \donttest{
-#' if (require("lme4")) {
-#'   data <- iris
-#'   data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
 #'
-#'   model <- lmer(Petal.Length ~ Sepal.Width + Species + (1 | Petal.Length_factor), data = data)
-#'   estimate_means(model)
-#'   estimate_means(model, at = "Sepal.Width", length = 3)
+#' @examplesIf require("see") && require("emmeans", quietly = TRUE)
+#' plot(means) # which runs visualisation_recipe()
+#'
+#' standardize(means)
+#'
+#' @examplesIf require("lme4") && require("emmeans", quietly = TRUE)
+#' \donttest{
+#' data <- iris
+#' data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
+#'
+#' model <- lmer(Petal.Length ~ Sepal.Width + Species + (1 | Petal.Length_factor), data = data)
+#' estimate_means(model)
+#' estimate_means(model, at = "Sepal.Width", length = 3)
 #' }
-#' }
-#' }
-#' @return A dataframe of estimated marginal means.
+#' @return A data frame of estimated marginal means.
 #' @export
 estimate_means <- function(model,
                            at = "auto",
@@ -55,47 +54,28 @@ estimate_means <- function(model,
                            backend = "emmeans",
                            ...) {
 
-  # Compute means
   if (backend == "emmeans") {
+    # Emmeans ------------------------------------------------------------------
     estimated <- get_emmeans(model, at, fixed, transform = transform, ...)
+    means <- .format_emmeans_means(estimated, model, ci, transform, ...)
 
-    # Summarize and clean
-    if (insight::model_info(model)$is_bayesian) {
-      means <- parameters::parameters(estimated, ci = ci, ...)
-      means <- .clean_names_bayesian(means, model, transform, type = "mean")
-      means <- cbind(estimated@grid, means)
-      means$`.wgt.` <- NULL # Drop the weight column
-    } else {
-      means <- as.data.frame(stats::confint(estimated, level = ci))
-      means$df <- NULL
-      means <- .clean_names_frequentist(means)
-    }
-    # Remove the "1 - overall" column that can appear in cases like at = NULL
-    means <- means[names(means) != "1"]
-
-    info <- attributes(estimated)
   } else {
-    means <- .get_marginalmeans(model, at, fixed, transform = transform, ...)
-
-    info <- attributes(means)
+    # Marginalmeans ------------------------------------------------------------
+    estimated <- .get_marginalmeans(model, at, ci=ci, ...)
+    means <- .format_marginaleffects_means(estimated, model, ...)
   }
-
-  # Restore factor levels
-  means <- datawizard::data_restoretype(means, insight::get_data(model))
 
 
   # Table formatting
-
   attr(means, "table_title") <- c("Estimated Marginal Means", "blue")
-  attr(means, "table_footer") <- .estimate_means_footer(means, info$at, type = "means")
+  attr(means, "table_footer") <- .estimate_means_footer(means, type = "means")
 
   # Add attributes
   attr(means, "model") <- model
   attr(means, "response") <- insight::find_response(model)
   attr(means, "ci") <- ci
   attr(means, "transform") <- transform
-  attr(means, "at") <- info$at
-  attr(means, "fixed") <- info$fixed
+
   attr(means, "coef_name") <- intersect(c("Mean", "Probability"), names(means))
 
 
@@ -115,11 +95,9 @@ estimate_means <- function(model,
 
   # Levels
   if (!is.null(at) && length(at) > 0) {
-    table_footer <- paste0(
-      table_footer,
-      " estimated at ",
-      paste0(at, collapse = ", ")
-    )
+    table_footer <- paste0(table_footer, " estimated at ", toString(at))
+  } else {
+    table_footer <- paste0(table_footer, " estimated at ", attr(x, "at"))
   }
 
   # P-value adjustment footer
@@ -131,6 +109,8 @@ estimate_means <- function(model,
     }
   }
 
-  if (table_footer == "") table_footer <- NULL
+  if (all(table_footer == "")) table_footer <- NULL
   c(table_footer, "blue")
 }
+
+

@@ -57,7 +57,7 @@ get_emmeans <- function(model,
                         ...) {
   # Deprecation
   if (!is.null(levels) || !is.null(modulate)) {
-    warning("The `levels` and `modulate` arguments are deprecated. Please use `at` instead.", call. = FALSE)
+    insight::format_warning("The `levels` and `modulate` arguments are deprecated. Please use `at` instead.")
     at <- c(levels, modulate)
   }
 
@@ -95,11 +95,69 @@ get_emmeans <- function(model,
 model_emmeans <- get_emmeans
 
 
+
+# =========================================================================
+# HELPERS  ----------------------------------------------------------------
+# =========================================================================
+# This function is the actual equivalent of .get_marginalmeans(); both being used
+# in estimate_means
+
+#' @keywords internal
+.format_emmeans_means <- function(estimated, model, ci = 0.95, transform = "response", ...) {
+  # Summarize and clean
+  if (insight::model_info(model)$is_bayesian) {
+    means <- parameters::parameters(estimated, ci = ci, ...)
+    means <- .clean_names_bayesian(means, model, transform, type = "mean")
+    means <- cbind(estimated@grid, means)
+    means$`.wgt.` <- NULL # Drop the weight column
+  } else {
+    means <- as.data.frame(stats::confint(estimated, level = ci))
+    means$df <- NULL
+    means <- .clean_names_frequentist(means)
+  }
+  # Remove the "1 - overall" column that can appear in cases like at = NULL
+  means <- means[names(means) != "1"]
+
+  # Restore factor levels
+  means <- datawizard::data_restoretype(means, insight::get_data(model))
+
+
+  info <- attributes(estimated)
+
+  attr(means, "at") <- info$at
+  attr(means, "fixed") <- info$fixed
+  means
+}
+
+
+
 # =========================================================================
 # HELPERS (guess arguments) -----------------------------------------------
 # =========================================================================
 
-#' @importFrom stats model.frame
+#' @keywords internal
+.guess_emmeans_arguments <- function(model,
+                                     at = NULL,
+                                     fixed = NULL,
+                                     ...) {
+  # Gather info
+  predictors <- insight::find_predictors(model, effects = "fixed", flatten = TRUE, ...)
+  data <- insight::get_data(model)
+
+  # Guess arguments
+  if (!is.null(at) && length(at) == 1 && at == "auto") {
+    at <- predictors[!sapply(data[predictors], is.numeric)]
+    if (!length(at) || all(is.na(at))) {
+      stop("Model contains no categorical factor. Please specify 'at'.", call. = FALSE)
+    }
+    message("We selected `at = c(", toString(paste0('"', at, '"')), ")`.")
+  }
+
+  args <- list(at = at, fixed = fixed)
+  .format_emmeans_arguments(model, args, data, ...)
+}
+
+
 #' @keywords internal
 .format_emmeans_arguments <- function(model, args, data, ...) {
   # Create the data_matrix
@@ -118,7 +176,7 @@ model_emmeans <- get_emmeans
       args$data_matrix <- expand.grid(args$at)
       args$at <- names(args$data_matrix)
     } else if (inherits(args$at, "formula")) {
-      args$data_matrix <- model.frame(args$at, data = data)
+      args$data_matrix <- stats::model.frame(args$at, data = data)
       args$at <- names(args$data_matrix)
     } else {
       if (!is.null(args$at) && all(args$at == "all")) {
@@ -174,7 +232,8 @@ model_emmeans <- get_emmeans
     terms <- insight::find_terms(model)$conditional
     for (var_at in names(args$emmeans_at)) {
       term <- terms[grepl(var_at, terms, fixed = TRUE)]
-      if (any(grepl(paste0("as.factor(", var_at, ")"), term, fixed = TRUE)) || any(grepl(paste0("as.character(", var_at, ")"), term, fixed = TRUE))) {
+      if (any(grepl(paste0("as.factor(", var_at, ")"), term, fixed = TRUE)) ||
+          any(grepl(paste0("as.character(", var_at, ")"), term, fixed = TRUE))) {
         args$retransform[[var_at]] <- args$emmeans_at[[var_at]]
         args$emmeans_at[[var_at]] <- as.numeric(as.character(args$emmeans_at[[var_at]]))
       }
@@ -187,24 +246,5 @@ model_emmeans <- get_emmeans
 
 
 
-#' @keywords internal
-.guess_emmeans_arguments <- function(model,
-                                     at = NULL,
-                                     fixed = NULL,
-                                     ...) {
-  # Gather info
-  predictors <- insight::find_predictors(model, effects = "fixed", flatten = TRUE, ...)
-  data <- insight::get_data(model)
 
-  # Guess arguments
-  if (!is.null(at) && length(at) == 1 && at == "auto") {
-    at <- predictors[!sapply(data[predictors], is.numeric)]
-    if (!length(at) || all(is.na(at))) {
-      stop("Model contains no categorical factor. Please specify 'at'.", call. = FALSE)
-    }
-    message("We selected `at = c(", paste0(paste0('"', at, '"'), collapse = ", "), ")`.")
-  }
 
-  args <- list(at = at, fixed = fixed)
-  .format_emmeans_arguments(model, args, data, ...)
-}

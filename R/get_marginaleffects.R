@@ -25,7 +25,9 @@ get_marginaleffects <- function(model,
   # Guess arguments
   if (is.null(trend)) {
     trend <- insight::find_predictors(model, effects = "fixed", flatten = TRUE)[1]
-    warning(paste0("'trend' cannot be NULL when using marginaleffects to compute overall effects. Selecting '", trend, "'"), call. = FALSE)
+    insight::format_warning(
+      paste0("`trend` cannot be NULL when using marginaleffects to compute overall effects. Selecting '", trend, "'.")
+    )
   }
 
   if (is.null(at)) {
@@ -39,7 +41,7 @@ get_marginaleffects <- function(model,
   if (length(fixed) == 0) fixed <- NULL
 
   # Compute stuff
-  estimated <- marginaleffects::marginaleffects(model, variables = trend, newdata = newdata, ...)
+  estimated <- marginaleffects::slopes(model, variables = trend, newdata = newdata, ...)
 
   attr(estimated, "trend") <- trend
   attr(estimated, "at") <- at

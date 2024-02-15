@@ -68,7 +68,8 @@ input is the result of \code{estimate_response} or \code{estimate_relation},
 to the x and y axes), "density_2d", "density_2d_filled",
 "density_2d_polygon" or "density_2d_raster".}
 
-\item{point, jitter, boxplot, violin, pointrange, density_2d, line, hline, ribbon, labs, facet_wrap}{Additional aesthetics and parameters for the geoms (see customization example).}
+\item{point, jitter, boxplot, violin, pointrange, density_2d, line, hline, ribbon, labs, facet_wrap}{Additional
+aesthetics and parameters for the geoms (see customization example).}
 }
 \description{
 Visualisation Recipe for 'modelbased' Objects
@@ -102,50 +103,45 @@ if (require("see") && require("lme4")) {
   plot(visualisation_recipe(x))
 }
 }
-# ==============================================
-# estimate_means
-# ==============================================
-if (require("ggplot2")) {
-  # Simple Model ---------------
-  x <- estimate_means(lm(Sepal.Width ~ Species, data = iris))
-  layers <- visualisation_recipe(x)
-  layers
-  plot(layers)
-}
+\dontshow{if (require("ggplot2", quietly = TRUE) && require("emmeans", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+# Simple Model ---------------
+x <- estimate_means(lm(Sepal.Width ~ Species, data = iris))
+layers <- visualisation_recipe(x)
+layers
+plot(layers)
 \donttest{
-if (require("ggplot2")) {
-  # Customize aesthetics
-  layers <- visualisation_recipe(x,
-    jitter = list(width = 0.03, color = "red"),
-    line = list(linetype = "dashed")
-  )
-  plot(layers)
+# Customize aesthetics
+layers <- visualisation_recipe(x,
+  jitter = list(width = 0.03, color = "red"),
+  line = list(linetype = "dashed")
+)
+plot(layers)
 
-  # Customize raw data
-  plot(visualisation_recipe(x, show_data = c("violin", "boxplot", "jitter")))
+# Customize raw data
+plot(visualisation_recipe(x, show_data = c("violin", "boxplot", "jitter")))
 
-  # Two levels ---------------
-  data <- mtcars
-  data$cyl <- as.factor(data$cyl)
-  data$new_factor <- as.factor(rep(c("A", "B"), length.out = nrow(mtcars)))
+# Two levels ---------------
+data <- mtcars
+data$cyl <- as.factor(data$cyl)
+data$new_factor <- as.factor(rep(c("A", "B"), length.out = nrow(mtcars)))
 
-  model <- lm(mpg ~ new_factor * cyl * wt, data = data)
-  x <- estimate_means(model, at = c("new_factor", "cyl"))
-  plot(visualisation_recipe(x))
+model <- lm(mpg ~ new_factor * cyl * wt, data = data)
+x <- estimate_means(model, at = c("new_factor", "cyl"))
+plot(visualisation_recipe(x))
 
-  # Modulations --------------
-  x <- estimate_means(model, at = c("new_factor", "wt"))
-  plot(visualisation_recipe(x))
+# Modulations --------------
+x <- estimate_means(model, at = c("new_factor", "wt"))
+plot(visualisation_recipe(x))
 
-  x <- estimate_means(model, at = c("new_factor", "cyl", "wt"))
-  plot(visualisation_recipe(x))
+# x <- estimate_means(model, at = c("new_factor", "cyl", "wt"))
+# plot(visualisation_recipe(x))  # TODO: broken
 
-  #'   # GLMs ---------------------
-  data <- data.frame(vs = mtcars$vs, cyl = as.factor(mtcars$cyl))
-  x <- estimate_means(glm(vs ~ cyl, data = data, family = "binomial"))
-  plot(visualisation_recipe(x))
+#'   # GLMs ---------------------
+data <- data.frame(vs = mtcars$vs, cyl = as.factor(mtcars$cyl))
+x <- estimate_means(glm(vs ~ cyl, data = data, family = "binomial"))
+plot(visualisation_recipe(x))
 }
-}
+\dontshow{\}) # examplesIf}
 # ==============================================
 # estimate_relation, estimate_response, ...
 # ==============================================
@@ -275,7 +271,7 @@ if (require("ggplot2")) {
   x <- estimate_slopes(model, at = c("Sepal.Width", "Species"))
   plot(visualisation_recipe(x))
 }
-\dontrun{
+\donttest{
 # TODO: fails with latest emmeans (1.8.0)
 if (require("mgcv")) {
   data <- iris
