@@ -18,7 +18,7 @@
 #'   indices (such as SE and CI), as these are not computable.
 #' @param ... Other arguments passed to or from other methods.
 #'
-#' @examplesIf require("lme4") && require("see")
+#' @examplesIf all(insight::check_if_installed(c("see", "lme4"), quietly = TRUE))
 #' # lme4 model
 #' data(mtcars)
 #' model <- lme4::lmer(mpg ~ hp + (1 | carb), data = mtcars)
@@ -80,7 +80,7 @@ estimate_grouplevel <- function(model, type = "random", ...) {
   random <- random[c("Group", "Level", names(random)[!names(random) %in% c("Group", "Level")])]
 
   # Sort
-  random <- random[order(random$Group, .to_numeric(random$Level), random$Parameter), ]
+  random <- random[order(random$Group, datawizard::coerce_to_numeric(random$Level), random$Parameter), ]
 
   # Clean
   row.names(random) <- NULL
@@ -89,7 +89,7 @@ estimate_grouplevel <- function(model, type = "random", ...) {
   attr(random, "type") <- type
   attr(random, "model") <- model
   attr(random, "parameters") <- params
-  attr(random, "data") <- insight::get_data(model)[insight::find_random(model, split_nested = TRUE, flatten = TRUE)]
+  attr(random, "data") <- insight::get_data(model, verbose = FALSE)[insight::find_random(model, split_nested = TRUE, flatten = TRUE)]
 
   class(random) <- c("estimate_grouplevel", class(random))
   random

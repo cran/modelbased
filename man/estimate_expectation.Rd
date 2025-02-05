@@ -2,28 +2,40 @@
 % Please edit documentation in R/estimate_predicted.R
 \name{estimate_expectation}
 \alias{estimate_expectation}
-\alias{estimate_response}
 \alias{estimate_link}
 \alias{estimate_prediction}
 \alias{estimate_relation}
-\title{Model-based response estimates and uncertainty}
+\title{Model-based predictions}
 \usage{
 estimate_expectation(
   model,
   data = NULL,
+  by = NULL,
+  predict = "expectation",
   ci = 0.95,
+  transform = NULL,
   keep_iterations = FALSE,
   ...
 )
 
-estimate_response(...)
-
-estimate_link(model, data = "grid", ci = 0.95, keep_iterations = FALSE, ...)
+estimate_link(
+  model,
+  data = "grid",
+  by = NULL,
+  predict = "link",
+  ci = 0.95,
+  transform = NULL,
+  keep_iterations = FALSE,
+  ...
+)
 
 estimate_prediction(
   model,
   data = NULL,
+  by = NULL,
+  predict = "prediction",
   ci = 0.95,
+  transform = NULL,
   keep_iterations = FALSE,
   ...
 )
@@ -31,7 +43,10 @@ estimate_prediction(
 estimate_relation(
   model,
   data = "grid",
+  by = NULL,
+  predict = "expectation",
   ci = 0.95,
+  transform = NULL,
   keep_iterations = FALSE,
   ...
 )
@@ -40,10 +55,38 @@ estimate_relation(
 \item{model}{A statistical model.}
 
 \item{data}{A data frame with model's predictors to estimate the response. If
-\code{NULL}, the model's data is used. If "grid", the model matrix is obtained
+\code{NULL}, the model's data is used. If \code{"grid"}, the model matrix is obtained
 (through \code{\link[insight:get_datagrid]{insight::get_datagrid()}}).}
 
+\item{by}{The predictor variable(s) at which to estimate the response. Other
+predictors of the model that are not included here will be set to their mean
+value (for numeric predictors), reference level (for factors) or mode (other
+types). The \code{by} argument will be used to create a data grid via
+\code{insight::get_datagrid()}, which will then be used as \code{data} argument. Thus,
+you cannot specify both \code{data} and \code{by} but only of these two arguments.}
+
+\item{predict}{This parameter controls what is predicted (and gets internally
+passed to \code{\link[insight:get_predicted]{insight::get_predicted()}}). In most cases, you don't need to care
+about it: it is changed automatically according to the different predicting
+functions (i.e., \code{estimate_expectation()}, \code{estimate_prediction()}, \code{estimate_link()}
+or \code{estimate_relation()}). The only time you might be interested in manually
+changing it is to estimate other distributional parameters (called "dpar" in
+other packages) - for instance when using complex formulae in \code{brms} models.
+The \code{predict} argument can then be set to the parameter you want to
+estimate, for instance \code{"sigma"}, \code{"kappa"}, etc. Note that the distinction
+between \code{"expectation"}, \code{"link"} and \code{"prediction"} does not then apply (as
+you are directly predicting the value of some distributional parameter), and
+the corresponding functions will then only differ in the default value of
+their \code{data} argument.}
+
 \item{ci}{Confidence Interval (CI) level. Default to \code{0.95} (\verb{95\%}).}
+
+\item{transform}{A function applied to predictions and confidence intervals
+to (back-) transform results, which can be useful in case the regression
+model has a transformed response variable (e.g., \code{lm(log(y) ~ x)}). Can also
+be \code{TRUE}, in which case \code{insight::get_transformation()} is called to
+determine the appropriate transformation-function. \strong{Note:} Standard errors
+are not (back-) transformed!}
 
 \item{keep_iterations}{If \code{TRUE}, will keep all iterations (draws) of
 bootstrapped or Bayesian models. They will be added as additional columns
@@ -62,12 +105,36 @@ and \code{\link[=visualisation_recipe.estimate_predicted]{plot()}} are available
 \description{
 After fitting a model, it is useful generate model-based estimates of the
 response variables for different combinations of predictor values. Such
-estimates can be used to make inferences about relationships between
-variables and to make predictions about individual cases.
+estimates can be used to make inferences about \strong{relationships} between
+variables, to make predictions about individual cases, or to compare the
+\strong{predicted} values against the observed data.
 
-Model-based response estimates and uncertainty can be generated for both the
-conditional average response values (the regression line or expectation) and
-for predictions about individual cases. See below for details.
+The \code{modelbased} package includes 4 "related" functions, that mostly differ in
+their default arguments (in particular, \code{data} and \code{predict}):
+\itemize{
+\item \code{estimate_prediction(data = NULL, predict = "prediction", ...)}
+\item \code{estimate_expectation(data = NULL, predict = "expectation", ...)}
+\item \code{estimate_relation(data = "grid", predict = "expectation", ...)}
+\item \code{estimate_link(data = "grid", predict = "link", ...)}
+}
+
+While they are all based on model-based predictions (using
+\code{\link[insight:get_predicted]{insight::get_predicted()}}), they differ in terms of the \strong{type} of
+predictions they make by default. For instance, \code{estimate_prediction()} and
+\code{estimate_expectation()} return predictions for the original data used to fit
+the model, while \code{estimate_relation()} and \code{estimate_link()} return
+predictions on a \code{\link[insight:get_datagrid]{insight::get_datagrid()}}. Similarly, \code{estimate_link}
+returns predictions on the link scale, while the others return predictions on
+the response scale. Note that the relevance of these differences depends on
+the model family (for instance, for linear models, \code{estimate_relation} is
+equivalent to \code{estimate_link()}, since there is no difference between the
+link-scale and the response scale).
+
+Note that you can run \code{\link[=visualisation_recipe.estimate_predicted]{plot()}} on
+the output of these functions to get some visual insights (see the
+\link[=visualisation_recipe.estimate_predicted]{plotting examples}).
+
+See the \strong{details} section below for details about the different possibilities.
 }
 \note{
 These functions are built on top of \code{\link[insight:get_predicted]{insight::get_predicted()}} and correspond
@@ -162,7 +229,7 @@ estimates and their uncertainty:
 \item Generates \strong{expected values} (conditional average) on the \strong{link scale}.
 \item The uncertainty interval is a \emph{confidence interval}.
 \item By default, values are computed using a reference grid spanning the
-observed range of predictor values (see \code{\link[=visualisation_matrix]{visualisation_matrix()}}).
+observed range of predictor values (see \code{\link[insight:get_datagrid]{insight::get_datagrid()}}).
 }
 \item \strong{\code{estimate_prediction()}}:
 \itemize{
@@ -177,11 +244,9 @@ observed range of predictor values (see \code{\link[=visualisation_matrix]{visua
 \item Generates \strong{expected values} (conditional average) on the \strong{response scale}.
 \item The uncertainty interval is a \emph{confidence interval}.
 \item By default, values are computed using a reference grid spanning the
-observed range of predictor values (see \code{\link[=visualisation_matrix]{visualisation_matrix()}}).
+observed range of predictor values (see \code{\link[insight:get_datagrid]{insight::get_datagrid()}}).
 }
 }
-
-\code{estimate_response()} is a deprecated alias for \code{estimate_expectation()}.
 }
 
 \section{Data for predictions}{
@@ -190,7 +255,7 @@ observed range of predictor values (see \code{\link[=visualisation_matrix]{visua
 If the \code{data = NULL}, values are estimated using the data used to fit the
 model. If \code{data = "grid"}, values are computed using a reference grid
 spanning the observed range of predictor values with
-\code{\link[=visualisation_matrix]{visualisation_matrix()}}. This can be useful for model visualization. The
+\code{\link[insight:get_datagrid]{insight::get_datagrid()}}. This can be useful for model visualization. The
 number of predictor values used for each variable can be controlled with the
 \code{length} argument. \code{data} can also be a data frame containing columns with
 names matching the model frame (see \code{\link[insight:get_data]{insight::get_data()}}). This can be used
@@ -198,22 +263,21 @@ to generate model predictions for specific combinations of predictor values.
 }
 
 \examples{
+\dontshow{if (all(insight::check_if_installed(c("see", "lme4", "rstanarm"), quietly = TRUE))) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 library(modelbased)
 
 # Linear Models
 model <- lm(mpg ~ wt, data = mtcars)
 
 # Get predicted and prediction interval (see insight::get_predicted)
-estimate_response(model)
+estimate_expectation(model)
 
 # Get expected values with confidence interval
 pred <- estimate_relation(model)
 pred
 
 # Visualisation (see visualisation_recipe())
-if (require("see")) {
-  plot(pred)
-}
+plot(pred)
 
 # Standardize predictions
 pred <- estimate_relation(lm(mpg ~ wt + am, data = mtcars))
@@ -223,25 +287,22 @@ unstandardize(z, include_response = FALSE)
 
 # Logistic Models
 model <- glm(vs ~ wt, data = mtcars, family = "binomial")
-estimate_response(model)
+estimate_expectation(model)
 estimate_relation(model)
 
 # Mixed models
-if (require("lme4")) {
-  model <- lmer(mpg ~ wt + (1 | gear), data = mtcars)
-  estimate_response(model)
-  estimate_relation(model)
-}
+model <- lme4::lmer(mpg ~ wt + (1 | gear), data = mtcars)
+estimate_expectation(model)
+estimate_relation(model)
 
 # Bayesian models
 \donttest{
-if (require("rstanarm")) {
-  model <- suppressWarnings(rstanarm::stan_glm(
-    mpg ~ wt,
-    data = mtcars, refresh = 0, iter = 200
-  ))
-  estimate_response(model)
-  estimate_relation(model)
+model <- suppressWarnings(rstanarm::stan_glm(
+  mpg ~ wt,
+  data = mtcars, refresh = 0, iter = 200
+))
+estimate_expectation(model)
+estimate_relation(model)
 }
-}
+\dontshow{\}) # examplesIf}
 }

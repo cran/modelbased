@@ -1,6 +1,15 @@
 #' @export
-print.estimate_contrasts <- function(x, ...) {
-  cat(insight::export_table(format(x), ...))
+print.estimate_contrasts <- function(x, full_labels = TRUE, ...) {
+  # format table
+  out <- format(x, ...)
+
+  # remove redundant labels, for "by" variables
+  out <- .remove_redundant_labels(x, out, full_labels)
+
+  # set alignment, left-align first and non-numerics
+  align <- .align_columns(x, out)
+
+  cat(insight::export_table(out, align = align, ...))
   invisible(x)
 }
 
@@ -22,46 +31,38 @@ print.visualisation_matrix <- print.estimate_contrasts
 #' @export
 print.estimate_grouplevel <- print.estimate_contrasts
 
-# Format ------------------------------------------------------------------
 
-#' @export
-format.estimate_contrasts <- function(x, format = NULL, ...) {
-  # don't print columns of adjusted_for variables
-  adjusted_for <- attr(x, "adjusted_for", exact = TRUE)
-  if (!is.null(adjusted_for) && all(adjusted_for %in% colnames(x))) {
-    # remove non-focal terms from data frame
-    x[adjusted_for] <- NULL
-  }
+# Helper --------------------------------
 
-  if (!is.null(format) && format %in% c("md", "markdown", "html")) {
-    insight::format_table(x, ci_brackets = c("(", ")"), ...)
-  } else {
-    insight::format_table(x, ...)
+.remove_redundant_labels <- function(x, out, full_labels) {
+  # remove redundant labels, for "by" variables
+  if (!full_labels && nrow(out) > 1) {
+    by <- attributes(x)$by
+    # for estimate_means, we don't want to remove labels for first focal term
+    # only for grouping variable. in `estimate_slopes()`, the first variable
+    # is saved in attribute $trend, so we need to remove it only for estimate_means
+    if (inherits(x, "estimate_means")) {
+      by <- by[-1]
+    }
+    # remove repeating elements in focal term columns
+    for (i in by) {
+      if (i %in% colnames(out)) {
+        for (j in nrow(x):2) {
+          if (out[[i]][j] == out[[i]][j - 1]) out[[i]][j] <- ""
+        }
+      }
+    }
   }
+  out
 }
 
-#' @export
-format.estimate_means <- format.estimate_contrasts
 
-#' @export
-format.estimate_slopes <- format.estimate_contrasts
-
-#' @export
-format.estimate_predicted <- format.estimate_contrasts
-
-#' @export
-format.estimate_grouplevel <- format.estimate_contrasts
-
-#' @export
-format.estimate_smooth <- function(x, ...) {
-  # Colnames
-  if ("Size" %in% names(x)) x$Size <- ifelse(x$Size < 1, paste0(insight::format_value(x$Size * 100), "%"), "100%")
-  if ("Part" %in% names(x)) x$Part <- insight::format_value(x$Part, protect_integers = TRUE)
-
-  insight::format_table(x, ...)
-}
-
-#' @export
-format.visualisation_matrix <- function(x, ...) {
-  x
+.align_columns <- function(x, out) {
+  align <- paste(c("l", rep.int("r", ncol(out) - 1)), collapse = "")
+  non_numerics <- !vapply(x, is.numeric, logical(1))
+  non_numeric_cols <- which(names(non_numerics) %in% colnames(out) & non_numerics)
+  for (i in non_numeric_cols) {
+    align <- sub(paste0("(.{", i - 1, "})."), "\\1l", align)
+  }
+  align
 }

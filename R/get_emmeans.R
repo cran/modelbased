@@ -1,87 +1,80 @@
-#' Easy 'emmeans' and 'emtrends'
+#' Consistent API for 'emmeans' and 'marginaleffects'
 #'
-#' The `get_emmeans()` function is a wrapper to facilitate the usage of
-#' `emmeans::emmeans()` and `emmeans::emtrends()`, providing a somewhat simpler
-#' and intuitive API to find the specifications and variables of interest. It is
-#' meanly made to for the developers to facilitate the organization and
-#' debugging, and end-users should rather use the `estimate_*()` series of
-#' functions.
+#' @description
+#' These functions are convenient wrappers around the **emmeans** and the
+#' **marginaleffects** packages. They are mostly available for developers who want
+#' to leverage a unified API for getting model-based estimates, and regular users
+#' should use the `estimate_*` set of functions.
 #'
-#' @param model A statistical model.
-#' @param fixed A character vector indicating the names of the predictors to be
-#'   "fixed" (i.e., maintained), so that the estimation is made at these values.
-#' @param transform Is passed to the `type` argument in
-#'   `emmeans::emmeans()`. See
-#'   [this vignette](https://CRAN.R-project.org/package=emmeans/vignettes/transformations.html).
-#'   Can be `"none"` (default for contrasts), `"response"`
-#'   (default for means), `"mu"`, `"unlink"`, `"log"`.
-#'   `"none"` will leave the values on scale of the linear predictors.
-#'   `"response"` will transform them on scale of the response variable.
-#'   Thus for a logistic model, `"none"` will give estimations expressed in
-#'   log-odds (probabilities on logit scale) and `"response"` in terms of
-#'   probabilities.
-#' @param levels,modulate Deprecated, use `by` instead.
-#' @param by The predictor variable(s) at which to evaluate the desired effect
-#'   / mean / contrasts. Other predictors of the model that are not included
-#'   here will be collapsed and "averaged" over (the effect will be estimated
-#'   across them).
-#' @param ... Other arguments passed for instance to [insight::get_datagrid()].
-#' @param at Deprecated, use `by` instead.
+#' The `get_emmeans()`, `get_emcontrasts()` and `get_emtrends()` functions are
+#' wrappers around `emmeans::emmeans()` and `emmeans::emtrends()`.
 #'
-#' @examples
+#' @inheritParams estimate_means
+#' @inheritParams estimate_slopes
+#' @inheritParams estimate_contrasts
+#'
+#' @examplesIf require("emmeans", quietly = TRUE)
 #' model <- lm(Sepal.Length ~ Species + Petal.Width, data = iris)
 #'
-#' if (require("emmeans", quietly = TRUE)) {
-#'   # By default, 'by' is set to "Species"
-#'   get_emmeans(model)
+#' # By default, 'by' is set to "Species"
+#' get_emmeans(model)
 #'
-#'   # Overall mean (close to 'mean(iris$Sepal.Length)')
-#'   get_emmeans(model, by = NULL)
+#' \dontrun{
+#' # Overall mean (close to 'mean(iris$Sepal.Length)')
+#' get_emmeans(model, by = NULL)
 #'
-#'   # One can estimate marginal means at several values of a 'modulate' variable
-#'   get_emmeans(model, by = "Petal.Width", length = 3)
+#' # One can estimate marginal means at several values of a 'modulate' variable
+#' get_emmeans(model, by = "Petal.Width", length = 3)
 #'
-#'   # Interactions
-#'   model <- lm(Sepal.Width ~ Species * Petal.Length, data = iris)
+#' # Interactions
+#' model <- lm(Sepal.Width ~ Species * Petal.Length, data = iris)
 #'
-#'   get_emmeans(model)
-#'   get_emmeans(model, by = c("Species", "Petal.Length"), length = 2)
-#'   get_emmeans(model, by = c("Species", "Petal.Length = c(1, 3, 5)"), length = 2)
+#' get_emmeans(model)
+#' get_emmeans(model, by = c("Species", "Petal.Length"), length = 2)
+#' get_emmeans(model, by = c("Species", "Petal.Length = c(1, 3, 5)"), length = 2)
 #' }
 #' @export
 get_emmeans <- function(model,
                         by = "auto",
-                        fixed = NULL,
-                        transform = "response",
-                        levels = NULL,
-                        modulate = NULL,
-                        at = NULL,
+                        predict = NULL,
+                        transform = NULL,
+                        verbose = TRUE,
                         ...) {
-  # Deprecation
-  if (!is.null(at)) {
-    insight::format_warning("The `at` argument is deprecated and will be removed in the future. Please use `by` instead.") # nolint
-    by <- at
-  }
-  if (!is.null(levels) || !is.null(modulate)) {
-    insight::format_warning("The `levels` and `modulate` arguments are deprecated. Please use `by` instead.")
-    by <- c(levels, modulate)
-  }
-
   # check if available
   insight::check_if_installed("emmeans")
 
+  ## TODO: remove deprecation warning later
+  if (!is.null(transform)) {
+    insight::format_warning("Argument `transform` is deprecated. Please use `predict` instead.")
+    predict <- transform
+  }
+
   # Guess arguments
-  my_args <- .guess_emmeans_arguments(model, by, fixed, ...)
+  my_args <- .guess_emmeans_arguments(model, by, verbose, ...)
 
+  # find default response-type
+  predict <- .get_emmeans_type_argument(model, predict, type = "means", ...)
 
-  # Run emmeans
-  estimated <- emmeans::emmeans(
+  # setup arguments
+  fun_args <- list(
     model,
     specs = my_args$emmeans_specs,
-    at = my_args$emmeans_at,
-    type = transform,
-    ...
+    at = my_args$emmeans_at
   )
+
+  # handle distributional parameters
+  if (predict %in% .brms_aux_elements() && inherits(model, "brmsfit")) {
+    fun_args$dpar <- predict
+  } else {
+    fun_args$type <- predict
+  }
+
+  # add dots
+  dots <- list(...)
+  fun_args <- insight::compact_list(c(fun_args, dots))
+
+  # Run emmeans
+  estimated <- suppressWarnings(do.call(emmeans::emmeans, fun_args))
 
   # Special behaviour for transformations #138 (see below)
   if ("retransform" %in% names(my_args) && length(my_args$retransform) > 0) {
@@ -93,54 +86,11 @@ get_emmeans <- function(model,
 
   attr(estimated, "at") <- my_args$by
   attr(estimated, "by") <- my_args$by
-  attr(estimated, "fixed") <- my_args$fixed
+  attr(estimated, "predict") <- predict
+  attr(estimated, "focal_terms") <- my_args$emmeans_specs
+
   estimated
 }
-
-#' @rdname get_emmeans
-#' @export
-model_emmeans <- get_emmeans
-
-
-
-# =========================================================================
-# HELPERS  ----------------------------------------------------------------
-# =========================================================================
-# This function is the actual equivalent of .get_marginalmeans(); both being used
-# in estimate_means
-
-#' @keywords internal
-.format_emmeans_means <- function(estimated, model, ci = 0.95, transform = "response", ...) {
-  # Summarize and clean
-  if (insight::model_info(model)$is_bayesian) {
-    means <- parameters::parameters(estimated, ci = ci, ...)
-    means <- .clean_names_bayesian(means, model, transform, type = "mean")
-    em_grid <- as.data.frame(estimated@grid)
-    em_grid[[".wgt."]] <- NULL # Drop the weight column
-    colums_to_add <- setdiff(colnames(em_grid), colnames(means))
-    if (length(colums_to_add)) {
-      means <- cbind(em_grid[colums_to_add], means)
-    }
-  } else {
-    means <- as.data.frame(stats::confint(estimated, level = ci))
-    means$df <- NULL
-    means <- .clean_names_frequentist(means)
-  }
-  # Remove the "1 - overall" column that can appear in cases like at = NULL
-  means <- means[names(means) != "1"]
-
-  # Restore factor levels
-  means <- datawizard::data_restoretype(means, insight::get_data(model))
-
-
-  info <- attributes(estimated)
-
-  attr(means, "at") <- info$by
-  attr(means, "by") <- info$by
-  attr(means, "fixed") <- info$fixed
-  means
-}
-
 
 
 # =========================================================================
@@ -150,32 +100,96 @@ model_emmeans <- get_emmeans
 #' @keywords internal
 .guess_emmeans_arguments <- function(model,
                                      by = NULL,
-                                     fixed = NULL,
+                                     verbose = TRUE,
                                      ...) {
   # Gather info
-  predictors <- insight::find_predictors(model, effects = "fixed", flatten = TRUE, ...)
-  my_data <- insight::get_data(model)
+  model_data <- insight::get_data(model, verbose = FALSE)
+  predictors <- intersect(
+    colnames(model_data),
+    insight::find_predictors(model, effects = "fixed", flatten = TRUE, ...)
+  )
 
   # Guess arguments
   if (!is.null(by) && length(by) == 1 && by == "auto") {
-    by <- predictors[!sapply(my_data[predictors], is.numeric)]
+    by <- predictors[!sapply(model_data[predictors], is.numeric)]
     if (!length(by) || all(is.na(by))) {
-      stop("Model contains no categorical factor. Please specify 'by'.", call. = FALSE)
+      insight::format_error("Model contains no categorical factor. Please specify `by`.")
     }
-    message("We selected `by = c(", toString(paste0('"', by, '"')), ")`.")
+    if (verbose) {
+      insight::format_alert(paste0("We selected `by = c(", toString(paste0('"', by, '"')), ")`."))
+    }
   }
 
-  my_args <- list(by = by, fixed = fixed)
-  .format_emmeans_arguments(model, args = my_args, data = my_data, ...)
+  my_args <- list(by = by)
+  .process_emmeans_arguments(model, args = my_args, data = model_data, ...)
 }
 
 
+## TODO: validate predict argument to make sure it only has valid options
+.get_emmeans_type_argument <- function(model, predict, type = "means", ...) {
+  if (is.null(predict)) {
+    predict <- switch(type,
+      means = "response",
+      contrasts = "response",
+      "none"
+    )
+  } else if (predict == "link") {
+    predict <- "none"
+  }
+  predict
+}
+
+
+# Table formatting emmeans ----------------------------------------------------
+
+
+.format_emmeans_means <- function(x, model, ci = 0.95, verbose = TRUE, ...) {
+  predict <- attributes(x)$predict
+  # Summarize and clean
+  if (insight::model_info(model)$is_bayesian) {
+    means <- parameters::parameters(x, ci = ci, ...)
+    means <- .clean_names_bayesian(means, model, predict, type = "mean")
+    em_grid <- as.data.frame(x@grid)
+    em_grid[[".wgt."]] <- NULL # Drop the weight column
+    colums_to_add <- setdiff(colnames(em_grid), colnames(means))
+    if (length(colums_to_add)) {
+      means <- cbind(em_grid[colums_to_add], means)
+    }
+  } else {
+    means <- as.data.frame(stats::confint(x, level = ci))
+    means$df <- NULL
+    means <- .clean_names_frequentist(means)
+  }
+  # Remove the "1 - overall" column that can appear in cases like at = NULL
+  means <- means[names(means) != "1"]
+
+  # Restore factor levels
+  means <- datawizard::data_restoretype(means, insight::get_data(model, verbose = FALSE))
+
+
+  info <- attributes(x)
+
+  attr(means, "at") <- info$by
+  attr(means, "by") <- info$by
+  means
+}
+
+
+# Bring arguments in shape for emmeans ----------------------------------------
+
+
 #' @keywords internal
-.format_emmeans_arguments <- function(model, args, data, ...) {
+.process_emmeans_arguments <- function(model, args, data, ...) {
   # Create the data_matrix
   # ---------------------------
-  # data <- insight::get_data(model)
-  data <- data[insight::find_predictors(model, effects = "fixed", flatten = TRUE, ...)]
+  # data <- insight::get_data(model, verbose = FALSE)
+  predictors <- insight::find_predictors(
+    model,
+    effects = "fixed",
+    flatten = TRUE,
+    ...
+  )
+  data <- data[intersect(predictors, colnames(data))]
 
   # Deal with 'at'
   if (is.null(args$by)) {
@@ -191,8 +205,7 @@ model_emmeans <- get_emmeans
     args$by <- names(args$data_matrix)
   } else {
     if (!is.null(args$by) && all(args$by == "all")) {
-      target <- insight::find_predictors(model, effects = "fixed", flatten = TRUE)
-      target <- target[!target %in% args$fixed]
+      target <- intersect(predictors, colnames(data))
     } else {
       target <- args$by
     }
@@ -212,16 +225,6 @@ model_emmeans <- get_emmeans
     } else {
       contrast <- contrast[!names(contrast) %in% names(args$data_matrix)]
       if (ncol(contrast) > 0) args$data_matrix <- merge(args$data_matrix, contrast)
-    }
-  }
-
-  # Deal with 'fixed'
-  if (!is.null(args$fixed)) {
-    fixed <- insight::get_datagrid(data[args$fixed], by = NULL, ...)
-    if (is.null(args$data_matrix)) {
-      args$data_matrix <- fixed
-    } else {
-      args$data_matrix <- merge(args$data_matrix, fixed)
     }
   }
 
