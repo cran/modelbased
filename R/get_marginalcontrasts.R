@@ -6,13 +6,14 @@ get_marginalcontrasts <- function(model,
                                   predict = NULL,
                                   ci = 0.95,
                                   comparison = "pairwise",
-                                  estimate = "average",
+                                  estimate = getOption("modelbased_estimate", "typical"),
                                   p_adjust = "none",
                                   transform = NULL,
+                                  keep_iterations = FALSE,
                                   verbose = TRUE,
                                   ...) {
   # check if available
-  insight::check_if_installed("marginaleffects")
+  insight::check_if_installed("marginaleffects", minimum_version = "0.25.0")
 
   # temporarily overwrite settings that error on "too many" rows
   me_option <- getOption("marginaleffects_safe")
@@ -32,13 +33,28 @@ get_marginalcontrasts <- function(model,
   model_data <- insight::get_data(model, source = "mf", verbose = FALSE)
   on_the_fly_factors <- attributes(model_data)$factors
 
+  # model details
+  model_info <- insight::model_info(model, verbose = FALSE)
+
   # Guess arguments
-  my_args <- .guess_marginaleffects_arguments(model, by, contrast, verbose = verbose, ...)
+  my_args <- .guess_marginaleffects_arguments(
+    model,
+    by,
+    contrast,
+    verbose = verbose,
+    ...
+  )
 
   # sanitize comparison argument, to ensure compatibility between different
   # marginaleffects versions - newer versions don't accept a string argument,
   # only formulas (older versions don't accept formulas)
-  my_args <- .get_marginaleffects_hypothesis_argument(comparison, my_args, model_data, ...)
+  my_args <- .get_marginaleffects_hypothesis_argument(
+    comparison,
+    my_args,
+    model_data,
+    estimate,
+    ...
+  )
 
   # extract first focal term
   first_focal <- my_args$contrast[1]
@@ -52,8 +68,9 @@ get_marginalcontrasts <- function(model,
   # Second step: compute contrasts, for slopes or categorical -----------------
   # ---------------------------------------------------------------------------
 
-  # if first focal term is numeric, we contrast slopes
-  if (is.numeric(model_data[[first_focal]]) && !first_focal %in% on_the_fly_factors) {
+  # if first focal term is numeric, we contrast slopes, but slopes only for
+  # # numerics with many values, not for binary or likert-alike
+  if (is.numeric(model_data[[first_focal]]) && !.is_likert(model_data[[first_focal]]) && !first_focal %in% on_the_fly_factors) { # nolint
     # sanity check - contrast for slopes only makes sense when we have a "by" argument
     if (is.null(my_args$by)) {
       insight::format_error("Please specify the `by` argument to calculate contrasts of slopes.") # nolint
@@ -66,6 +83,8 @@ get_marginalcontrasts <- function(model,
       ci = ci,
       hypothesis = my_args$comparison_slopes,
       backend = "marginaleffects",
+      transform = transform,
+      keep_iterations = keep_iterations,
       verbose = verbose,
       ...
     )
@@ -80,18 +99,20 @@ get_marginalcontrasts <- function(model,
       backend = "marginaleffects",
       estimate = estimate,
       transform = transform,
+      keep_iterations = keep_iterations,
       verbose = verbose,
       ...
     )
   }
 
-  # filter results
-  if (!is.null(my_args$by_filter) && all(my_args$by %in% colnames(out))) {
-    out <- out[out[[my_args$by]] == my_args$by_filter, ]
-  }
+  # filter results - for `estimate_contrasts()`, and when `estimate = "average"`,
+  # we don't filter using the data grid; due to the flexible way of defining
+  # comparisons, we need the full data grid and filter here (e.g., when we have
+  # `by="Petal.Width=c(1, 2)"`)
+  out <- .filter_contrasts_average(out, my_args)
 
   # adjust p-values
-  if (!insight::model_info(model)$is_bayesian) {
+  if (!model_info$is_bayesian) {
     out <- .p_adjust(model, out, p_adjust, verbose, ...)
   }
 
@@ -102,12 +123,15 @@ get_marginalcontrasts <- function(model,
   out <- .add_attributes(
     out,
     by = my_args$by,
+    model_info = model_info,
     info = list(
       contrast = my_args$contrast,
       predict = predict,
       comparison = my_args$comparison,
       estimate = estimate,
-      p_adjust = p_adjust
+      p_adjust = p_adjust,
+      contrast_filter = my_args$contrast_filter,
+      keep_iterations = keep_iterations
     )
   )
 
@@ -120,87 +144,177 @@ get_marginalcontrasts <- function(model,
 }
 
 
+# filter "contrasts" for `estimate = "average"` -------------------------------
+
+.filter_contrasts_average <- function(out, my_args) {
+  # filter results - for `estimate_contrasts()`, and when `estimate = "average"`,
+  # we don't filter using the data grid; due to the flexible way of defining
+  # comparisons, we need the full data grid and filter here (e.g., when we have
+  # `by="Petal.Width=c(1, 2)"`)
+  if (!is.null(my_args$by_filter) && all(names(my_args$by_filter) %in% colnames(out))) {
+    for (i in names(my_args$by_filter)) {
+      filter_ok <- any(my_args$by_filter[[i]] %in% out[[i]])
+      # stop if not...
+      if (!filter_ok) {
+        # set up informative message
+        example_values <- sample(unique(out[[i]]), pmin(3, insight::n_unique(out[[i]])))
+        # tell user...
+        insight::format_error(paste0(
+          "None of the values specified for the predictor `", i,
+          "` are available in the data. This is required for `estimate=\"average\"`.",
+          " Either use a different option for the `estimate` argument, or use values that",
+          " are present in the data, such as ",
+          datawizard::text_concatenate(example_values, last = " or ", enclose = "`"),
+          "."
+        ))
+      }
+      out <- out[out[[i]] %in% my_args$by_filter[[i]], ]
+    }
+  }
+  out
+}
+
+
 # make "comparison" argument compatible -----------------------------------
 
-.get_marginaleffects_hypothesis_argument <- function(comparison, my_args, model_data = NULL, ...) {
+# this function has two major tasks: format the "comparison" argument for use
+# in the marginaleffects package, and extract the potential filter values used
+# in `by` and `contrast` (if any), to "clean" these arguments and save the levels
+# or values at which rows should be filtered later...
+.get_marginaleffects_hypothesis_argument <- function(comparison,
+                                                     my_args,
+                                                     model_data = NULL,
+                                                     estimate = NULL,
+                                                     ...) {
   # init
-  comparison_slopes <- by_filter <- by_token <- NULL
+  comparison_slopes <- by_filter <- contrast_filter <- by_token <- NULL
+  # save original `by`
+  original_by <- my_args$by
 
-  # make sure "by" is a valid column name, and no filter-directive,
-  # like "Species='setosa'". If `by` is also used for filtering, split and
-  # extract filter value for later - we have to filter rows manually after
-  # calculating contrasts. Furthermore, "clean" `by` argument (remove filter)
+  # make sure "by" is a valid column name, and no filter-directive, like
+  # "Species='setosa'". If `by` is also used for filtering, split and extract
+  # filter value for later - we have to filter rows manually after calculating
+  # contrasts (but only for `estimate = "average"`!). Furthermore, "clean" `by`
+  # argument (remove filter), because we need the pure variable name for setting
+  # up the hypothesis argument, where variables in `by` are used in the formula
   if (!is.null(my_args$by) && any(grepl("=", my_args$by, fixed = TRUE))) { # "[^0-9A-Za-z\\._]"
-    # look for filter values
-    filter_value <- insight::trim_ws(unlist(strsplit(my_args$by, "=", fixed = TRUE), use.names = FALSE))
-    if (length(filter_value) > 1) {
-      # parse filter value and save for later user
-      by_filter <- .safe(eval(str2lang(filter_value[2])))
-      # check if evaluation was possible, or if we had a "token", like
-      # "[sd]" or "[fivenum]". If not, update `by`, else preserve
-      if (is.null(by_filter) && !grepl("[\\[\\]]", filter_value[2])) {
-        by_token <- filter_value[2]
+    # find which element in `by` has a filter
+    filter_index <- grep("=", my_args$by, fixed = TRUE)
+    for (f in filter_index) {
+      # look for filter values
+      filter_value <- insight::trim_ws(unlist(
+        strsplit(my_args$by[f], "=", fixed = TRUE),
+        use.names = FALSE
+      ))
+      if (length(filter_value) > 1) {
+        # parse filter value and save for later use - we create a named list,
+        # because we need to know *which* variables in `by` used a filter. we
+        # could have `by = c("x", "y=c(1,2)")`, but also `by = c("x=c('a','b')", "y")`.
+        # the list has the variable name as name, and the filter values as element
+        by_value <- stats::setNames(
+          list(.safe(eval(str2lang(filter_value[2])))),
+          filter_value[1]
+        )
+        by_filter <- c(by_filter, by_value)
+        # check if evaluation was possible, or if we had a "token", like
+        # "[sd]" or "[fivenum]". If not, update `by`, else preserve
+        if (is.null(by_value[[1]]) && !grepl("[\\[\\]]", filter_value[2])) {
+          by_token <- c(by_token, stats::setNames(list(filter_value[2]), filter_value[1]))
+        }
+        # copy "cleaned" variable
+        my_args$by[f] <- filter_value[1]
       }
-      # copy "cleaned" variable
-      my_args$by <- filter_value[1]
+    }
+  }
+
+  # if filtering is requested for contrasts, we also want to extract the filter
+  # values for later use. we only need this for `estimate = "average"`, because
+  # that is the only situation where we do *not* use a data grid, which we else
+  # could use for filtering, by dropping not-wanted rows from the grid.
+  if (identical(estimate, "average") && !is.null(my_args$contrast) && any(grepl("=", my_args$contrast, fixed = TRUE))) { # nolint
+    # find which element in `by` has a filter
+    filter_index <- grep("=", my_args$contrast, fixed = TRUE)
+    for (f in filter_index) {
+      # look for filter values
+      filter_value <- insight::trim_ws(unlist(
+        strsplit(my_args$contrast[f], "=", fixed = TRUE),
+        use.names = FALSE
+      ))
+      if (length(filter_value) > 1) {
+        # parse filter value and save for later user - we need as named list
+        # for the same reason as mentioned above...
+        contrast_filter <- c(
+          contrast_filter,
+          stats::setNames(list(.safe(eval(str2lang(filter_value[2])))), filter_value[1])
+        )
+      }
     }
   }
 
   # convert comparison and by into a formula
-  if (!is.null(comparison)) {
-    # only proceed if we don't have custom comparisons
-    if (!.is_custom_comparison(comparison)) {
-      # if we have a formula as comparison, we convert it into strings in order
-      # to extract the information for "comparison" and "by", because we
-      # recombine the formula later - we always use variables in `by` as group
-      # in the formula-definition for marginaleffects
-      if (inherits(comparison, "formula")) {
-        # check if we have grouping in the formula, indicated via "|". we split
-        # the formula into the three single components: lhs ~ rhs | group
-        f <- insight::trim_ws(unlist(strsplit(insight::safe_deparse(comparison), "[~|]")))
-        # extract formula parts
-        formula_lhs <- f[1]
-        formula_rhs <- f[2]
-        formula_group <- f[3]
-        # can be NA when no group
-        if (is.na(formula_group) || !nzchar(formula_group)) {
-          # no grouping via formula
-          formula_group <- NULL
-        } else {
-          # else, if we have groups, update by-argument
-          my_args$by <- formula_group
-        }
-      } else {
-        # if comparison is a string, do sanity check for "comparison" argument
-        insight::validate_argument(comparison, .valid_hypothesis_strings())
-        formula_lhs <- "difference"
-        formula_rhs <- comparison
-      }
-      # we put "by" into the formula. user either provided "by", or we put the
-      # group variable from the formula into "by" (see code above), hence,
-      # "my_args$by" definitely contains the requested groups
-      formula_group <- my_args$by
-      # compose formula
-      f <- paste(formula_lhs, "~", paste(formula_rhs, collapse = "+"))
-      # for contrasts of slopes, we don *not* want the group-variable in the formula
-      comparison_slopes <- stats::as.formula(f)
-      # for contrasts of categorical, we add the group variable and update `by`
-      if (!is.null(formula_group)) {
-        f <- paste(f, "|", paste(formula_group, collapse = "+"))
-        my_args$by <- formula_group
-      }
-      comparison <- stats::as.formula(f)
-    }
-  } else {
+  if (is.null(comparison)) {
     # default to pairwise, if comparison = NULL
     comparison <- comparison_slopes <- ~pairwise
+  } else if (.is_custom_comparison(comparison)) {
+    # we have not set "comparison_slopes" yet - we also set it to custom hypothesis
+    comparison_slopes <- comparison
+  } else {
+    # only proceed if we don't have custom comparisons
+    # if we have a formula as comparison, we convert it into strings in order
+    # to extract the information for "comparison" and "by", because we
+    # recombine the formula later - we always use variables in `by` as group
+    # in the formula-definition for marginaleffects
+    if (inherits(comparison, "formula")) {
+      # check if we have grouping in the formula, indicated via "|". we split
+      # the formula into the three single components: lhs ~ rhs | group
+      f <- insight::trim_ws(unlist(strsplit(insight::safe_deparse(comparison), "[~|]")))
+      # extract formula parts
+      formula_lhs <- f[1]
+      formula_rhs <- f[2]
+      formula_group <- f[3]
+      # can be NA when no group
+      if (is.na(formula_group) || !nzchar(formula_group)) {
+        # no grouping via formula
+        formula_group <- NULL
+      } else {
+        # else, if we have groups, update by-argument
+        my_args$by <- formula_group
+      }
+    } else {
+      # if comparison is a string, do sanity check for "comparison" argument
+      insight::validate_argument(comparison, .valid_hypothesis_strings())
+      formula_lhs <- "difference"
+      formula_rhs <- comparison
+    }
+    # we put "by" into the formula. user either provided "by", or we put the
+    # group variable from the formula into "by" (see code above), hence,
+    # "my_args$by" definitely contains the requested groups
+    formula_group <- my_args$by
+    # compose formula
+    f <- paste(formula_lhs, "~", paste(formula_rhs, collapse = "+"))
+    # for contrasts of slopes, we don *not* want the group-variable in the formula
+    comparison_slopes <- stats::as.formula(f)
+    # for contrasts of categorical, we add the group variable and update `by`
+    if (!is.null(formula_group)) {
+      f <- paste(f, "|", paste(formula_group, collapse = "+"))
+      my_args$by <- formula_group
+    }
+    comparison <- stats::as.formula(f)
   }
   # remove "by" from "contrast"
   my_args$contrast <- setdiff(my_args$contrast, my_args$by)
 
-  # add back token to `by`
-  if (!is.null(by_token)) {
-    my_args$by <- paste(my_args$by, by_token, sep = "=")
+  # for `estimate = "average"`, we cannot create a data grid, thus we need to
+  # filter manually. However, for all other `estimate` options, we can simply
+  # use the data grid for filtering
+  if (!identical(estimate, "average") && !is.null(original_by)) {
+    my_args$by <- original_by
+    by_filter <- NULL
+  } else if (!is.null(by_token)) {
+    # add back token to `by`
+    for (i in names(by_token)) {
+      my_args$by[my_args$by == i] <- paste(i, by_token[[i]], sep = "=")
+    }
   }
 
   c(
@@ -211,8 +325,9 @@ get_marginalcontrasts <- function(model,
       comparison = comparison,
       # the modifed comparison, as formula, excluding "by" as group
       comparison_slopes = comparison_slopes,
-      # the filter-value, in case `by` indicated any filtering
-      by_filter = by_filter
+      # the filter-value, in case `by` or contrast indicated any filtering
+      by_filter = insight::compact_list(by_filter),
+      contrast_filter = insight::compact_list(contrast_filter)
     )
   )
 }
@@ -257,7 +372,10 @@ get_marginalcontrasts <- function(model,
   # this is the row-order we use in modelbased
   datagrid$.rowid <- 1:nrow(datagrid)
   # this is the row-order in marginaleffects
-  datagrid <- datawizard::data_arrange(datagrid, colnames(datagrid)[1:(length(datagrid) - 1)])
+  datagrid <- datawizard::data_arrange(
+    datagrid,
+    colnames(datagrid)[1:(length(datagrid) - 1)]
+  )
   # we need to extract all b's and the former parameter numbers
   b <- .extract_custom_comparison(comparison)
   old_b_numbers <- as.numeric(gsub("b", "", b, fixed = TRUE))
@@ -278,57 +396,4 @@ get_marginalcontrasts <- function(model,
     comparison <- gsub(new_b_letters[i], new_b[i], comparison, fixed = TRUE)
   }
   comparison
-}
-
-
-# p-value adjustment --------------------------------------
-
-.p_adjust <- function(model, params, p_adjust, verbose = TRUE, ...) {
-  # extract information
-  datagrid <- attributes(params)$datagrid
-  focal <- attributes(params)$contrast
-  statistic <- insight::get_statistic(model)$Statistic
-  dof <- insight::get_df(model, type = "wald", verbose = FALSE)
-
-  # exit on NULL, or if no p-adjustment requested
-  if (is.null(p_adjust) || identical(p_adjust, "none")) {
-    return(params)
-  }
-
-  # harmonize argument
-  p_adjust <- tolower(p_adjust)
-
-  all_methods <- c(tolower(stats::p.adjust.methods), "tukey", "sidak")
-  insight::validate_argument(p_adjust, all_methods)
-
-  # needed for rank adjustment
-  focal_terms <- datagrid[focal]
-  rank_adjust <- prod(vapply(focal_terms, insight::n_unique, numeric(1)))
-
-  if (p_adjust %in% tolower(stats::p.adjust.methods)) {
-    # base R adjustments
-    params[["p"]] <- stats::p.adjust(params[["p"]], method = p_adjust)
-  } else if (p_adjust == "tukey") {
-    if (!is.null(statistic)) {
-      # tukey adjustment
-      params[["p"]] <- suppressWarnings(stats::ptukey(
-        sqrt(2) * abs(statistic),
-        rank_adjust,
-        dof,
-        lower.tail = FALSE
-      ))
-      # for specific contrasts, ptukey might fail, and the tukey-adjustement
-      # could just be simple p-value calculation
-      if (all(is.na(params[["p"]]))) {
-        params[["p"]] <- 2 * stats::pt(abs(statistic), df = dof, lower.tail = FALSE)
-      }
-    } else if (verbose) {
-      insight::format_alert("No test-statistic found. P-values were not adjusted.")
-    }
-  } else if (p_adjust == "sidak") {
-    # sidak adjustment
-    params[["p"]] <- 1 - (1 - params[["p"]])^rank_adjust
-  }
-
-  params
 }

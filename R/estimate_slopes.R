@@ -17,6 +17,13 @@
 #'
 #' @param trend A character indicating the name of the variable for which to
 #' compute the slopes.
+#' @param p_adjust The p-values adjustment method for frequentist multiple
+#' comparisons. For `estimate_slopes()`, multiple comparison only occurs for
+#' Johnson-Neyman intervals, i.e. in case of interactions with two numeric
+#' predictors (one specified in `trend`, one in `by`). In this case, the `"esarey"`
+#' option is recommended, but `p_adjust` can also be one of `"none"` (default),
+#' `"hochberg"`, `"hommel"`, `"bonferroni"`, `"BH"`, `"BY"`, `"fdr"`, `"tukey"`,
+#' `"sidak"`, or `"holm"`.
 #' @inheritParams estimate_means
 #' @inheritParams parameters::model_parameters.default
 #'
@@ -115,15 +122,35 @@ estimate_slopes <- function(model,
                             trend = NULL,
                             by = NULL,
                             ci = 0.95,
+                            p_adjust = "none",
+                            transform = NULL,
+                            keep_iterations = FALSE,
                             backend = getOption("modelbased_backend", "marginaleffects"),
                             verbose = TRUE,
                             ...) {
   if (backend == "emmeans") {
     # Emmeans ------------------------------------------------------------------
-    estimated <- get_emtrends(model, trend = trend, by = by, verbose = verbose, ...)
+    estimated <- get_emtrends(
+      model,
+      trend = trend,
+      by = by,
+      keep_iterations = keep_iterations,
+      verbose = verbose,
+      ...
+    )
     trends <- .format_emmeans_slopes(model, estimated, ci, ...)
   } else {
-    estimated <- get_marginaltrends(model, trend = trend, by = by, verbose = verbose, ...)
+    estimated <- get_marginaltrends(
+      model,
+      trend = trend,
+      by = by,
+      ci = ci,
+      p_adjust = p_adjust,
+      transform = transform,
+      keep_iterations = keep_iterations,
+      verbose = verbose,
+      ...
+    )
     trends <- format(estimated, model, ci, ...)
   }
 
@@ -131,12 +158,9 @@ estimate_slopes <- function(model,
   info <- attributes(estimated)
 
   # Table formatting
-  table_footer <- paste("\nMarginal effects estimated for", info$trend)
-  if (!is.null(attributes(trends)$slope)) {
-    table_footer <- paste0(table_footer, "\nType of slope was ", attributes(trends)$slope)
-  }
+  table_footer <- .table_footer_slopes(trends, model = model, info = info)
   attr(trends, "table_title") <- c("Estimated Marginal Effects", "blue")
-  attr(trends, "table_footer") <- c(table_footer, "blue")
+  attr(trends, "table_footer") <- c(table_footer, "yellow")
 
   # Add attributes
   attr(trends, "model") <- model

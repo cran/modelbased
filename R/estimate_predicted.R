@@ -177,8 +177,8 @@
 #' to (back-) transform results, which can be useful in case the regression
 #' model has a transformed response variable (e.g., `lm(log(y) ~ x)`). Can also
 #' be `TRUE`, in which case `insight::get_transformation()` is called to
-#' determine the appropriate transformation-function. **Note:** Standard errors
-#' are not (back-) transformed!
+#' determine the appropriate transformation-function. Note that no standard
+#' errors are returned when transformations are applied.
 #' @param ... You can add all the additional control arguments from
 #' [insight::get_datagrid()] (used when `data = "grid"`) and
 #' [insight::get_predicted()].
@@ -353,7 +353,7 @@ estimate_relation <- function(model,
     # for models, get predictors, response etc.
     variables <- insight::find_predictors(model, effects = "all", flatten = TRUE)
     model_response <- insight::find_response(model)
-    is_nullmodel <- insight::is_nullmodel(model)
+    is_nullmodel <- isTRUE(.safe(insight::is_nullmodel(model)))
     grouplevel_effects <- insight::find_random(model, flatten = TRUE, split_nested = TRUE)
   } else {
     # for stuff like data frame, no response and no null model
@@ -462,29 +462,39 @@ estimate_relation <- function(model,
 
   # transform reponse?
   if (isTRUE(transform)) {
-    transform <- insight::get_transformation(model, verbose = FALSE)$inverse
+    trans_fun <- insight::get_transformation(model, verbose = FALSE)$inverse
+  } else {
+    trans_fun <- transform
   }
-  if (!is.null(transform)) {
-    out$Predicted <- transform(out$Predicted)
-    out$CI_low <- transform(out$CI_low)
-    out$CI_high <- transform(out$CI_high)
+  if (!is.null(trans_fun)) {
+    out$Predicted <- trans_fun(out$Predicted)
+    out$CI_low <- trans_fun(out$CI_low)
+    out$CI_high <- trans_fun(out$CI_high)
+    out$SE <- NULL
   }
 
   # Store relevant information
   attr(out, "ci") <- ci
   attr(out, "keep_iterations") <- keep_iterations
   attr(out, "response") <- model_response
+  attr(out, "transform") <- !is.null(transform)
   attr(out, "model") <- model
   attr(out, "datagrid") <- data
   attr(out, "focal_terms") <- grid_specs$at_specs$varname
   attr(out, "preserve_range") <- grid_specs$preserve_range
   attr(out, "table_title") <- c("Model-based Predictions", "blue")
+  attr(out, "coef_name") <- "Predicted"
+  attr(out, "model_info") <- insight::model_info(model)
   attr(out, "table_footer") <- .table_footer(
     out,
     by = grid_specs$at,
     type = "predictions",
     model = model,
-    info = c(grid_specs, list(predict = predict))
+    info = c(
+      grid_specs,
+      list(predict = predict),
+      transform = !is.null(transform)
+    )
   )
 
   attributes(out) <- c(attributes(out), grid_specs[!names(grid_specs) %in% names(attributes(out))])

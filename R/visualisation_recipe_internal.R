@@ -2,7 +2,7 @@
 
 
 #' @keywords internal
-.find_aes <- function(x) {
+.find_aes <- function(x, model_info = NULL, numeric_as_discrete = 8) {
   # init basic aes
   data <- as.data.frame(x)
   data$.group <- 1
@@ -19,6 +19,24 @@
 
   # Find predictors
   by <- att$focal_terms
+
+  # multivariate response models? if so, we need one more stratification in "by"
+  if (isTRUE(model_info$is_ordinal | model_info$is_multinomial) && "Response" %in% colnames(data)) {
+    by <- c(by, "Response")
+    data$Response <- factor(data$Response, levels = unique(data$Response))
+  }
+
+  # if we have only few numeric values, we don't want a continuous color scale.
+  # check whether we can treat numeric as discrete
+  if (!isFALSE(numeric_as_discrete) && is.numeric(numeric_as_discrete)) {
+    data[by] <- lapply(data[by], function(v) {
+      if (is.numeric(v) && insight::n_unique(v) < numeric_as_discrete) {
+        formatted <- insight::format_value(v, protect_integers = TRUE)
+        v <- factor(formatted, levels = unique(formatted))
+      }
+      v
+    })
+  }
 
   # Main geom
   # ------------------------------------------------------------------------
@@ -46,13 +64,35 @@
     }
   } else if ("estimate_grouplevel" %in% att$class) {
     aes$x <- "Level"
-    aes$y <- "Coefficient"
-    aes$type <- "grouplevel"
-    if (length(unique(data$Parameter)) > 1) {
-      aes$color <- "Parameter"
-      data$.group <- paste(data$.group, data$Parameter)
+    # find coefficient name, this may differ for Bayesian models
+    if (!is.null(att$coef_name) && length(att$coef_name)) {
+      aes$y <- att$coef_name
+    } else {
+      aes$y <- "Coefficient"
     }
-    if (length(unique(data$Group)) > 1) aes$facet <- "Group"
+    aes$type <- "grouplevel"
+    # setup facets
+    facet_by <- NULL
+    if (insight::n_unique(data$Parameter) > 1) {
+      facet_by <- c(facet_by, "Parameter")
+      aes$color <- "Parameter"
+    }
+    if (insight::n_unique(data$Group) > 1) {
+      facet_by <- c(facet_by, "Group")
+    }
+    if (insight::n_unique(data$Component) > 1) {
+      facet_by <- c(facet_by, "Component")
+    }
+    if (!is.null(facet_by)) {
+      data$facet <- data$Group
+      if ("Parameter" %in% facet_by) {
+        data$facet <- paste0(data$facet, ": ", data$Parameter)
+      }
+      if ("Component" %in% facet_by) {
+        data$facet <- paste0(data$facet, " (", gsub("_", " ", data$Component, fixed = TRUE), ")")
+      }
+      aes$facet <- "facet"
+    }
     aes <- .find_aes_ci(aes, data)
     return(list(aes = aes, data = data))
   }
@@ -171,6 +211,9 @@
   if (length(ci_lows) > 0) {
     aes$ymin <- ci_lows
     aes$ymax <- ci_highs
+  } else {
+    aes$ymin <- NA_real_
+    aes$ymax <- NA_real_
   }
   aes
 }
@@ -189,15 +232,20 @@
                                   facet = NULL,
                                   grid = NULL,
                                   join_dots = TRUE,
+                                  numeric_as_discrete = 8,
                                   ...) {
   # init
   response_scale <- attributes(x)$predict
-  aes <- .find_aes(x)
+  model_info <- attributes(x)$model_info
+
+  aes <- .find_aes(x, model_info, numeric_as_discrete)
   data <- aes$data
   aes <- aes$aes
   global_aes <- list()
   layers <- list()
   l <- 1
+
+  # preparation of settings / arguments ----------------------------------
 
   # check whether point-geoms should be connected by lines
   do_not_join <- "grouplevel"
@@ -210,7 +258,19 @@
     show_data <- FALSE
   }
 
-  # add raw data as first layer
+  # Don't plot raw data for transformed responses with no back-transformation
+  transform <- attributes(x)$transform
+
+  if (isTRUE(model_info$is_linear) && !isTRUE(transform)) {
+    # add information about response transformation
+    trans_fun <- .safe(insight::find_transformation(attributes(x)$model))
+    if (!is.null(trans_fun) && trans_fun != "identity") {
+      show_data <- FALSE
+    }
+  }
+
+
+  # add raw data as first layer ----------------------------------
   if (show_data) {
     layers[[paste0("l", l)]] <- .visualization_recipe_rawdata(x, aes)
     # Update with additional args
@@ -234,7 +294,7 @@
 
   # Uncertainty -----------------------------------
   if (!identical(ribbon, "none") && aes$type == "ribbon" && is.null(aes$alpha)) {
-    for (i in seq_len(length(aes$ymin))) {
+    for (i in seq_along(aes$ymin)) {
       # base list elements
       aes_list <- list(
         y = aes$y,
@@ -335,6 +395,7 @@
     l <- l + 1
   }
 
+
   # add axis and legend labels ----------------------------------
   if (!is.null(aes$labs)) {
     layers[[paste0("l", l)]] <- insight::compact_list(list(
@@ -346,6 +407,23 @@
     ))
     l <- l + 1
   }
+
+
+  # probability scale? ----------------------------------
+  if (!is.null(response_scale) && response_scale %in% c("response", "invlink(link)", "prob", "probs") &&
+    isTRUE(model_info$is_logit | model_info$is_binomial | model_info$is_orderedbeta | model_info$is_beta | model_info$is_ordinal)) { # nolint
+    layers[[paste0("l", l)]] <- list(
+      geom = "scale_y_continuous",
+      labels = insight::format_value(
+        x = pretty(sort(c(data[[aes$ymin]], data[[aes$ymax]]))),
+        as_percent = TRUE,
+        digits = 0
+      ),
+      breaks = pretty(sort(c(data[[aes$ymin]], data[[aes$ymax]])))
+    )
+    l <- l + 1
+  }
+
 
   # Out
   class(layers) <- unique(c("visualisation_recipe", "see_visualisation_recipe", class(layers)))

@@ -1,3 +1,87 @@
+# modelbased 0.10.0
+
+## Breaking Changes
+
+* The deprecated function `visualisation_matrix()` has been removed. Use
+  `insight::get_datagrid()` instead.
+
+* The `"average"` option for argument `estimate` was renamed into `"typical"`.
+  The former `"average"` option is still available, but now returns marginal
+  means fully averaged across the sample.
+
+## Changes
+
+* The `transform` argument now also works for `estimate_slopes()` and for
+  `estimate_contrasts()` with numeric focal terms.
+
+* `estimate_contrasts()` no longer calls `estimate_slopes()` for numeric focal
+  terms when these are integers with only few values. In this case, it is assumed
+  that contrasts of values ("levels") are desired, because integer variables with
+  only two to five unique values are factor-alike.
+
+* `estimate_contrasts`: now supports optional standardized effect sizes, one of
+  "none" (default), "emmeans", or "bootES" (#227, @rempsyc).
+
+* The `predict()` argument for `estimate_means()` gets an `"inverse_link"` option,
+  to calculate predictions on the link-scale and back-transform them to the
+  response scale after aggregation by groups.
+
+* `estimate_means()`, `estimate_slopes()` and `estimate_contrasts()` get a
+  `keep_iterations` argument, to keep all posterior draws from Bayesian models
+  added as columns to the output.
+
+* New functions `pool_predictions()` and `pool_contrasts()`, to deal with
+  *modelbased* objects that were applied to imputed data sets. E.g., functions
+  like `estimate_means()` can be run on several data sets where missing values
+  were imputed, and the multiple results from `estimate_means()` can be pooled
+  using `pool_predictions()`.
+
+* The `print()` method is now explicitly documented and gets some new options
+  to customize the output for tables.
+
+* `estimate_grouplevel()` gets a new option, `type = "total"`, to return the
+  sum of fixed and random effects (similar to what `coef()` returns for (Bayesian)
+  mixed models).
+
+* New option `"esarey"` for the `p_adjust` argument. The `"esarey"` option is
+  specifically for the case of Johnson-Neyman intervals, i.e. when calling
+  `estimate_slopes()` with two numeric predictors in an interaction term.
+
+* `print_html()` and `print_md()` pass `...` to format-methods (e.g. to
+  `insight::format_table()`), to tweak the output.
+
+* The `show_data` argument in `plot()` is automatically set to `FALSE` when
+  the models has a transformed response variable, but predictions were not
+  back-transformed using the `transform` argument.
+
+* The `plot()` method gets a `numeric_as_discrete` argument, to decide whether
+  numeric predictors should be treated as factor or continuous, based on the
+  of unique values in numeric predictors.
+
+* Plots now use a probability scale for the y-axis for models whose response
+  scale are probabilities (e.g., logistic regression).
+
+* Improved printing for `estimate_contrasts()` when one of the focal predictors
+  was numeric.
+
+## Bug fixes
+
+* Fixed issue in the `summary()` method for `estimate_slopes()`.
+
+* Fixed issues with multivariate response models.
+
+* Fixed issues with plotting ordinal or multinomial models.
+
+* Fixed issues with `ci` argument, which was ignored for Bayesian models.
+
+* Fixed issues with contrasting slopes when `backend` was `"emmeans"`.
+
+* Fixed issues in `estimate_contrasts()` when filtering numeric values in `by`.
+
+* Fixed issues in `estimate_grouplevel()`.
+
+* Fixed issue in `estimate_slopes()` for models from package *lme4*.
+
 # modelbased 0.9.0
 
 ## Breaking Changes

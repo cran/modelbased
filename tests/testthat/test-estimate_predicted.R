@@ -1,3 +1,5 @@
+skip_if_not_installed("insight", minimum_version = "1.1.0")
+
 test_that("estimate_relation - shape", {
   skip_if_not_installed("gamm4")
   skip_if_not_installed("rstanarm")
@@ -9,7 +11,7 @@ test_that("estimate_relation - shape", {
   model <- lm(Petal.Length ~ Petal.Width, data = iris)
   estim <- estimate_relation(model, ci = 0.90)
   expect_equal(attributes(estim)$ci, 0.9)
-  estim <- estimate_relation(model, ci = c(0.90, .95))
+  estim <- estimate_relation(model, ci = c(0.90, 0.95))
   expect_equal(attributes(estim)$ci, c(0.90, 0.95))
   expect_equal(dim(estim), c(10, 7))
 
@@ -146,13 +148,13 @@ test_that("estimate_expectation - Frequentist", {
 
   model <- lme4::lmer(wt ~ cyl + (1 | gear), data = data)
   estim <- estimate_link(model)
-  expect_equal(dim(estim), c(10, 6))
+  expect_identical(dim(estim), c(3L, 6L))
   estim <- estimate_expectation(model)
   expect_equal(dim(estim), c(32, 7))
 
   model <- lme4::glmer(vs ~ cyl + (1 | gear), data = data, family = "binomial")
   estim <- estimate_link(model)
-  expect_equal(dim(estim), c(10, 6))
+  expect_identical(dim(estim), c(3L, 6L))
   estim <- estimate_expectation(model)
   expect_equal(dim(estim), c(32, 7))
 })

@@ -1,3 +1,5 @@
+skip_if_not_installed("insight", minimum_version = "1.1.0")
+
 test_that("estimate_expectation", {
   skip_if_not_installed("lme4")
   model <- lme4::lmer(mpg ~ wt + factor(am) + (1 | cyl), data = mtcars)
@@ -46,7 +48,7 @@ test_that("estimate_expectation - data-grid", {
 
   m <- lm(mpg ~ cyl, data = mtcars)
   estim <- estimate_expectation(m, data = "grid")
-  expect_identical(dim(estim), c(10L, 5L))
+  expect_identical(dim(estim), c(3L, 5L))
   expect_named(
     estim,
     c("cyl", "Predicted", "SE", "CI_low", "CI_high")

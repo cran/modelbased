@@ -11,7 +11,7 @@ test_that("attributes_means", {
     c(
       "names", "row.names", "class", "at", "by", "table_title", "table_footer",
       "model", "response", "ci", "backend", "coef_name", "focal_terms",
-      "predict"
+      "predict", "transform", "keep_iterations"
     )
   )
   estim <- suppressMessages(estimate_means(model, "Species", backend = "marginaleffects"))
@@ -19,8 +19,9 @@ test_that("attributes_means", {
     attributes(estim),
     c(
       "names", "class", "row.names", "at", "by", "focal_terms", "adjusted_for",
-      "predict", "estimate", "datagrid", "preserve_range", "table_title",
-      "table_footer", "model", "response", "ci", "backend", "coef_name"
+      "predict", "estimate", "transform", "datagrid", "preserve_range",
+      "model_info", "keep_iterations", "table_title", "table_footer", "model",
+      "response", "ci", "backend", "coef_name"
     )
   )
 })
@@ -36,7 +37,7 @@ test_that("attributes_means, contrasts", {
     c(
       "names", "class", "row.names", "table_title", "table_footer",
       "model", "response", "ci", "p_adjust", "backend", "predict",
-      "comparison", "contrast"
+      "comparison", "contrast", "transform", "keep_iterations"
     )
   )
   estim <- suppressMessages(estimate_contrasts(model, "Species", backend = "marginaleffects"))
@@ -46,7 +47,30 @@ test_that("attributes_means, contrasts", {
       "names", "row.names", "class", "table_title", "table_footer",
       "model", "response", "ci", "p_adjust", "backend", "focal_terms",
       "adjusted_for", "predict", "comparison", "contrast", "estimate",
-      "datagrid", "preserve_range", "coef_name"
+      "transform", "datagrid", "preserve_range", "coef_name", "model_info",
+      "keep_iterations"
+    )
+  )
+  estim <- suppressMessages(estimate_contrasts(model, "Species=c('setosa','virginica')", backend = "marginaleffects"))
+  expect_named(
+    attributes(estim),
+    c(
+      "names", "row.names", "class", "table_title", "table_footer",
+      "model", "response", "ci", "p_adjust", "backend", "focal_terms",
+      "adjusted_for", "predict", "comparison", "contrast", "estimate",
+      "transform", "datagrid", "preserve_range", "coef_name", "model_info",
+      "keep_iterations"
+    )
+  )
+  estim <- suppressMessages(estimate_contrasts(model, "Species=c('setosa','virginica')", backend = "marginaleffects", estimate = "average"))
+  expect_named(
+    attributes(estim),
+    c(
+      "names", "row.names", "class", "table_title", "table_footer",
+      "model", "response", "ci", "p_adjust", "backend", "focal_terms",
+      "adjusted_for", "predict", "comparison", "contrast", "estimate",
+      "transform", "datagrid", "preserve_range", "coef_name", "model_info",
+      "contrast_filter", "keep_iterations"
     )
   )
 })
@@ -61,15 +85,17 @@ test_that("attributes_means, slopes", {
     attributes(estim),
     c(
       "names", "row.names", "class", "table_title", "table_footer",
-      "model", "response", "ci", "trend", "coef_name"
+      "model", "response", "ci", "trend", "transform", "coef_name",
+      "keep_iterations"
     )
   )
   estim <- suppressMessages(estimate_slopes(model, "Sepal.Width", backend = "marginaleffects"))
   expect_named(
     attributes(estim),
     c(
-      "names", "class", "row.names", "trend", "comparison", "coef_name",
-      "slope", "table_title", "table_footer", "model", "response", "ci"
+      "names", "class", "row.names", "trend", "comparison", "p_adjust",
+      "transform", "coef_name", "slope", "ci", "model_info", "keep_iterations",
+      "table_title", "table_footer", "model", "response"
     )
   )
 })
@@ -87,9 +113,9 @@ test_that("attributes_means", {
     attributes(estim),
     c(
       "names", "row.names", "class", "ci", "keep_iterations", "response",
-      "model", "datagrid", "focal_terms", "preserve_range", "table_title",
-      "table_footer", "adjusted_for", "at_specs", "at", "by", "reference",
-      "data"
+      "transform", "model", "datagrid", "focal_terms", "preserve_range",
+      "table_title", "coef_name", "model_info", "table_footer", "adjusted_for",
+      "at_specs", "at", "by", "reference", "data"
     )
   )
 })
