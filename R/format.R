@@ -119,7 +119,7 @@ format.marginaleffects_means <- function(x, model, ci = 0.95, ...) {
   model_data <- insight::get_data(model, verbose = FALSE)
   info <- attributes(x)$model_info
   if (is.null(info)) {
-    info <- insight::model_info(model)
+    info <- insight::model_info(model, response = 1)
   }
   non_focal <- setdiff(colnames(model_data), attr(x, "focal_terms"))
   is_contrast_analysis <- !is.null(list(...)$hypothesis)
@@ -160,7 +160,7 @@ format.marginaleffects_slopes <- function(x, model, ci = 0.95, ...) {
   # model information
   info <- attributes(x)$model_info
   if (is.null(info)) {
-    info <- insight::model_info(model)
+    info <- insight::model_info(model, response = 1)
   }
   model_data <- insight::get_data(model, verbose = FALSE)
   # define all columns that should be removed
@@ -169,7 +169,7 @@ format.marginaleffects_slopes <- function(x, model, ci = 0.95, ...) {
   # however, for estimating trends/slope, the "Parameter" column is usually
   # redundant. Since we cannot check for class-attributes, we simply check if
   # all values are identical
-  if ("term" %in% colnames(x) && insight::n_unique(x$term) == 1) {
+  if ("term" %in% colnames(x) && insight::has_single_value(x$term, remove_na = TRUE)) {
     remove_columns <- c("Parameter", remove_columns)
   }
   # there are some exceptions for `estimate_slope()`, when the `Comparison`
@@ -498,31 +498,19 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
   # coefficient column is named, because we replace that column name with an
   # appropriate name of the predictions (e.g. "Difference", "Probability" or
   # "Mean")
-  if (is.null(attributes(x)$posterior_draws)) {
-    # frequentist
-    params <- suppressWarnings(parameters::model_parameters(x, ci = ci, verbose = FALSE))
-    coefficient_name <- intersect(
-      c(attributes(params)$coefficient_name, "Coefficient", "Slope", "Predicted"),
-      colnames(params)
-    )[1]
-  } else {
-    # Bayesian
-    params <- suppressWarnings(bayestestR::describe_posterior(x, ci = ci, verbose = FALSE, ...))
-    ## FIXME: needs to be fixed in bayestestR: categorical models don't return group column
-    # see https://github.com/easystats/bayestestR/issues/692
-    if (info$is_categorical) {
-      params$group <- .safe(x$group)
-    }
-    coefficient_name <- intersect(
-      c(attributes(params)$coefficient_name, "Median", "Mean", "MAP"),
-      colnames(params)
-    )[1]
-    # we need to remove some more columns
-    remove_columns <- c(remove_columns, "rowid")
-    # and modify the estimate name - if it's not a dpar
-    if (!is.null(estimate_name) && !tolower(estimate_name) %in% .brms_aux_elements()) {
-      estimate_name <- coefficient_name
-    }
+  params <- suppressWarnings(parameters::model_parameters(x, ci = ci, verbose = FALSE, ...))
+  # the different functions and models (Bayesian, frequentist) have different
+  # column names for their "coefficient". We now extract the relevant one.
+  possible_colnames <- c(
+    attributes(params)$coefficient_name,
+    "Coefficient", "Slope", "Predicted", "Median", "Mean", "MAP"
+  )
+  coefficient_name <- intersect(possible_colnames, colnames(params))[1]
+  # we need to remove some more columns
+  remove_columns <- c(remove_columns, "rowid")
+  # and modify the estimate name - if it's not a dpar
+  if (!is.null(attributes(x)$posterior_draws) && !is.null(estimate_name) && !tolower(estimate_name) %in% .brms_aux_elements()) { # nolint
+    estimate_name <- coefficient_name
   }
   # rename the "term" and "hypothesis" column (which we get from contrasts)
   colnames(params)[colnames(params) == "term"] <- "Parameter"
@@ -550,25 +538,22 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
 
   # rename coefficient name and statistics columns
   if (!is.null(estimate_name)) {
-    params <- datawizard::data_rename(
-      params,
-      select = coefficient_name,
-      replacement = estimate_name
-    )
+    colnames(params)[colnames(params) == coefficient_name] <- estimate_name
   }
-  if ("Statistic" %in% colnames(params)) {
-    params <- datawizard::data_rename(
-      params,
-      select = "Statistic",
-      replacement = gsub("-statistic", "", insight::find_statistic(model), fixed = TRUE)
-    )
+  # marginaleffects objects return z-statistic by default, unless we change it
+  # via the degrees-of-freedom argument
+  if (is.null(params$df) || all(is.infinite(params$df))) {
+    stat_column <- "z"
+  } else {
+    stat_column <- "t"
   }
+  colnames(params)[colnames(params) == "Statistic"] <- stat_column
 
   # remove redundant columns
   params <- datawizard::data_remove(params, remove_columns, verbose = FALSE) # nolint
 
   # Rename for Categorical family
-  if (info$is_categorical || info$is_ordinal || info$is_cumulative) {
+  if (info$is_categorical || info$is_ordinal || info$is_cumulative || insight::is_multivariate(model)) {
     params <- .safe(datawizard::data_rename(params, "group", "Response"), params)
   }
 
@@ -646,7 +631,9 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
 #' @keywords internal
 .guess_estimate_name <- function(predict_type, info) {
   # estimate name
-  if (!is.null(predict_type) && tolower(predict_type) %in% .brms_aux_elements()) {
+  if (is.null(predict_type) && is.null(info)) {
+    estimate_name <- "Mean"
+  } else if (!is.null(predict_type) && tolower(predict_type) %in% .brms_aux_elements()) {
     # for Bayesian models with distributional parameter
     estimate_name <- tools::toTitleCase(predict_type)
   } else if (!predict_type %in% c("none", "link") && (info$is_binomial || info$is_bernoulli)) {

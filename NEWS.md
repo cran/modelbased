@@ -1,3 +1,82 @@
+# modelbased 0.11.0
+
+## New functions
+
+* Added `pool_slopes()`, to pool results from `estimate_slopes()` applied to
+  imputed data.
+
+## Breaking Changes
+
+* `reshape_grouplevel()` now takes the correct number of specified random effects
+  groups into account when reshaping results.
+
+## Changes
+
+* In general, it is now possible to make estimate means, contrasts and slopes
+  for distributional parameters for models from package *brms* using the
+  `predict` argument.
+
+* `estimate_grouplevel()` gets arguments `test`, `dispersion` and `diagnostic`,
+  that are internally passed to `parameters::model_parameters()`, but with
+  different defaults.
+
+* `estimate_prediction()` and `estimate_relation()` now support Wiener-models
+  (Drift Diffusion Models) from package *brms*.
+
+* `estimate_prediction()`, `estimate_relation()` and similar functions now
+  include the `Row` column for models with ordinal or categorical response
+  variables when the `data` argument was provided.
+
+* `estimate_slopes()` can now also calculate average marginal effects of a
+  predictor, just for the trend of that predictor within a certain range of
+  values.
+
+* `estimate_slopes()` gets a `predict` argument, to either select the scale
+  of the estimates slopes, or to estimate slopes (marginal effects) for
+  distributional parameters of *brms* models.
+
+* `estimate_contrasts()` gives an informative error message when arguments
+  `by` and `contrast` have identical variables (which does not work).
+
+* Column names of predicted values for `backend = "emmeans"` has changed for
+  models like logistic regression, or beta regression. Formerly, name was
+  `Mean`, now it is `Probability` or `Proportion`, depending on the model.
+
+* Exposed `iterations` argument in `estimate_prediction()` and `estimate_relation()`.
+
+* Option `estimate = "average` no longer prints information on averaged predictors
+  in the footer, because strictly, the *predictions* are averaged over, and not
+  the non-focal variables.
+
+* Better handling for models with offsets in `estimate_means()` and
+  `estimate_contrasts()`. Informative messages are given when models include
+  offset terms, and it is possible to fix the offset value using the `offset`
+  argument. The `offset` argument is also available for `estimate_relation()`,
+  `estimate_prediction()` and similar.
+
+* For consistency, `estimate_slopes()` now also uses the residual degrees of
+  freedom by default (like `estimate_means()`) when calculating confidence
+  intervals and p-values.
+
+* Minor improvements to the documentation.
+
+## Bug fixes
+
+* Fixed issues in `estimate_grouplevel()` for models from package *rstanarm*.
+
+* Fixed issues in calculating correct confidence intervals (and possibly p-values)
+  for pooling functions `pool_parameters()` and `pool_predictions()`.
+
+* Fixed issue in `estimate_means()` for multivariate response models from
+  package *brms*.
+
+* Fixed issue with wrong y-axis label for plots from `estimate_slopes()`.
+
+* Fixed issue with weights in `estimate_relation()`.
+
+* Fixed issue in printed output for the statistic column, which should be `z`
+  for the `marginaleffects` backend, when argument `df = Inf`.
+
 # modelbased 0.10.0
 
 ## Breaking Changes

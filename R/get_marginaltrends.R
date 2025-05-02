@@ -10,6 +10,7 @@
 get_marginaltrends <- function(model,
                                trend = NULL,
                                by = NULL,
+                               predict = NULL,
                                ci = 0.95,
                                p_adjust = "none",
                                transform = NULL,
@@ -21,21 +22,21 @@ get_marginaltrends <- function(model,
   dots <- list(...)
 
   # model details
-  model_info <- insight::model_info(model, verbose = FALSE)
+  model_info <- insight::model_info(model, response = 1, verbose = FALSE)
 
   # Guess arguments
-  trend <- .guess_marginaltrends_arguments(model, trend, verbose, ...)
+  myargs <- .guess_marginaltrends_arguments(model, trend, by, verbose, ...)
 
   # First step: create a data grid --------------------------------------------
   # ---------------------------------------------------------------------------
 
   # data grid only when we have by predictors
-  if (is.null(by)) {
+  if (is.null(by) && is.null(myargs$range)) {
     datagrid <- datagrid_info <- NULL
   } else {
     dg_args <- list(
       model,
-      by = by,
+      by = c(by, myargs$range),
       factors = "all",
       include_random = TRUE,
       verbose = FALSE
@@ -47,6 +48,23 @@ get_marginaltrends <- function(model,
     # Get corresponding datagrid (and deal with particular ats)
     datagrid <- do.call(insight::get_datagrid, dg_args)
     datagrid_info <- attributes(datagrid)
+
+    # get "by" argument from data grid
+    myargs$by <- datagrid_info$at_specs$varname
+
+    # remove `range` (or: `trend`) variable from `by`. If user specified a range
+    # for `trend`, we need the data (the defined range) in the data grid, but we
+    # do not want to stratify by the same variable in `by` then (this won't
+    # work). instead, in `.guess_marginaltrends_arguments()`, we copy the
+    # `trend` value to `range`, which we pass to the data grid, and `trend` only
+    # contains the variable name after that. This variable needs to be removed,
+    # to not to be passed to `by`
+    if (!is.null(myargs$range)) {
+      myargs$by <- setdiff(myargs$by, myargs$trend)
+      if (!length(myargs$by)) {
+        myargs$by <- NULL
+      }
+    }
   }
 
   # Second step: prepare arguments for marginaleffects ------------------------
@@ -66,17 +84,29 @@ get_marginaltrends <- function(model,
     dots$weights <- NULL
   }
 
+  # model df - can be passed via `...`
+  if (is.null(dots$df) && !model_info$is_bayesian) {
+    dots$df <- insight::get_df(model, type = "wald", verbose = FALSE)
+  }
+
   # setup arguments again
   fun_args <- insight::compact_list(c(
     list(
       model,
-      variables = trend,
-      by = datagrid_info$at_specs$varname,
+      variables = myargs$trend,
+      by = myargs$by,
       newdata = datagrid,
       conf_level = ci
     ),
     dots
   ))
+
+  # handle distributional parameters
+  if (!is.null(predict) && inherits(model, "brmsfit") && predict %in% .brms_aux_elements(model)) {
+    fun_args$dpar <- predict
+  } else {
+    fun_args$type <- predict
+  }
 
   # Third step: compute marginal slopes ---------------------------------------
   # ---------------------------------------------------------------------------
@@ -102,7 +132,6 @@ get_marginaltrends <- function(model,
     estimated$std.error <- NULL
   }
 
-
   # Last step: Save information in attributes  --------------------------------
   # ---------------------------------------------------------------------------
 
@@ -112,7 +141,7 @@ get_marginaltrends <- function(model,
     info = c(
       datagrid_info,
       list(
-        trend = trend,
+        trend = myargs$trend,
         datagrid = datagrid,
         coef_name = "Slope",
         p_adjust = p_adjust,
@@ -140,6 +169,7 @@ get_marginaltrends <- function(model,
 #' @keywords internal
 .guess_marginaltrends_arguments <- function(model,
                                             trend = NULL,
+                                            by = NULL,
                                             verbose = TRUE,
                                             ...) {
   # Gather info
@@ -159,6 +189,8 @@ get_marginaltrends <- function(model,
       insight::format_alert(paste0("No numeric variable was specified for slope estimation. Selecting `trend = \"", trend, "\"`.")) # nolint
     }
   }
+
+  # check that we have only one predictor
   if (length(trend) > 1) {
     if (verbose) {
       insight::format_alert(paste0(
@@ -169,7 +201,31 @@ get_marginaltrends <- function(model,
     trend <- trend[1]
   }
 
-  trend
+  # check if user provided values in `trend`, e.g. `trend=1:10`. We then pass
+  # this argument to also create a data grid, but we also need to "clean" trend
+  if (grepl("=", trend, fixed = TRUE)) {
+    range <- trend
+    trend <- gsub("=.*", "\\1", trend)
+  } else {
+    range <- NULL
+  }
+
+  # make sure range in `trend` is not also in `by`
+  if (!is.null(by) && !is.null(range) && startsWith(by, trend)) {
+    insight::format_error(
+      paste0(
+        "To calculate average marginal effects over a range of `", trend, "` ",
+        "values, use `trend=\"", trend, "=seq(1, 3, 0.1)\"` (or similar) and omit `",
+        trend, "` from the `by` argument."
+      ),
+      paste0(
+        "To get marginal effects at specific `", trend, "` values, use `trend=\"",
+        trend, "\"` along with `by=\"", trend, "=c(1, 3, 5)\"`."
+      )
+    )
+  }
+
+  list(trend = trend, range = range, by = NULL)
 }
 
 

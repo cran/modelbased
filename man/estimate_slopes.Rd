@@ -8,11 +8,12 @@ estimate_slopes(
   model,
   trend = NULL,
   by = NULL,
+  predict = NULL,
   ci = 0.95,
   p_adjust = "none",
   transform = NULL,
   keep_iterations = FALSE,
-  backend = getOption("modelbased_backend", "marginaleffects"),
+  backend = NULL,
   verbose = TRUE,
   ...
 )
@@ -21,29 +22,56 @@ estimate_slopes(
 \item{model}{A statistical model.}
 
 \item{trend}{A character indicating the name of the variable for which to
-compute the slopes.}
+compute the slopes. To get marginal effects at specific values, use
+\code{trend="<variable>"} along with the \code{by} argument, e.g.
+\code{by="<variable>=c(1, 3, 5)"}, or a combination of \code{by} and \code{length}, for
+instance, \verb{by="<variable>", length=30}. To calculate average marginal
+effects over a range of values, use \code{trend="<variable>=seq(1, 3, 0.1)"} (or
+similar) and omit the variable provided in \code{trend} from the \code{by} argument.}
 
 \item{by}{The (focal) predictor variable(s) at which to evaluate the desired
 effect / mean / contrasts. Other predictors of the model that are not
 included here will be collapsed and "averaged" over (the effect will be
 estimated across them). \code{by} can be a character (vector) naming the focal
 predictors, optionally including representative values or levels at which
-focal predictors are evaluated (e.g., \code{by="x=c(1,2)"}). When \code{estimate} is
-\emph{not} \code{"average"}, the \code{by} argument is used to create a "reference grid" or
-"data grid" with representative values for the focal predictors. In this
+focal predictors are evaluated (e.g., \code{by = "x = c(1, 2)"}). When \code{estimate}
+is \emph{not} \code{"average"}, the \code{by} argument is used to create a "reference grid"
+or "data grid" with representative values for the focal predictors. In this
 case, \code{by} can also be list of named elements. See details in
 \code{\link[insight:get_datagrid]{insight::get_datagrid()}} to learn more about how to create data grids for
 predictors of interest.}
+
+\item{predict}{Is passed to the \code{type} argument in \code{emmeans::emmeans()} (when
+\code{backend = "emmeans"}) or in \code{marginaleffects::avg_predictions()} (when
+\code{backend = "marginaleffects"}). Valid options for \code{predict} are:
+\itemize{
+\item \code{backend = "marginaleffects"}: \code{predict} can be \code{"response"}, \code{"link"},
+\code{"inverse_link"} or any valid \code{type} option supported by model's class
+\code{predict()} method (e.g., for zero-inflation models from package
+\strong{glmmTMB}, you can choose \code{predict = "zprob"} or \code{predict = "conditional"}
+etc., see \link[glmmTMB:predict.glmmTMB]{glmmTMB::predict.glmmTMB}). By default, when \code{predict = NULL},
+the most appropriate transformation is selected, which usually returns
+predictions or contrasts on the response-scale. The \code{"inverse_link"} is a
+special option, comparable to \emph{marginaleffects}' \code{invlink(link)} option. It
+will calculate predictions on the link scale and then back-transform to the
+response scale.
+\item \code{backend = "emmeans"}: \code{predict} can be \code{"response"}, \code{"link"}, \code{"mu"},
+\code{"unlink"}, or \code{"log"}. If \code{predict = NULL} (default), the most appropriate
+transformation is selected (which usually is \code{"response"}). See also
+\href{https://CRAN.R-project.org/package=emmeans/vignettes/transformations.html}{this vignette}.
+}
+
+See also section \emph{Predictions on different scales}.}
 
 \item{ci}{Confidence Interval (CI) level. Default to \code{0.95} (\verb{95\%}).}
 
 \item{p_adjust}{The p-values adjustment method for frequentist multiple
 comparisons. For \code{estimate_slopes()}, multiple comparison only occurs for
 Johnson-Neyman intervals, i.e. in case of interactions with two numeric
-predictors (one specified in \code{trend}, one in \code{by}). In this case, the \code{"esarey"}
-option is recommended, but \code{p_adjust} can also be one of \code{"none"} (default),
-\code{"hochberg"}, \code{"hommel"}, \code{"bonferroni"}, \code{"BH"}, \code{"BY"}, \code{"fdr"}, \code{"tukey"},
-\code{"sidak"}, or \code{"holm"}.}
+predictors (one specified in \code{trend}, one in \code{by}). In this case, the
+\code{"esarey"} option is recommended, but \code{p_adjust} can also be one of \code{"none"}
+(default), \code{"hochberg"}, \code{"hommel"}, \code{"bonferroni"}, \code{"BH"}, \code{"BY"}, \code{"fdr"},
+\code{"tukey"}, \code{"sidak"}, or \code{"holm"}.}
 
 \item{transform}{A function applied to predictions and confidence intervals
 to (back-) transform results, which can be useful in case the regression
@@ -61,16 +89,21 @@ number, only as many columns as indicated in \code{keep_iterations} will be adde
 to the output. You can reshape them to a long format by running
 \code{\link[bayestestR:reshape_iterations]{bayestestR::reshape_iterations()}}.}
 
-\item{backend}{Whether to use \code{"marginaleffects"} or \code{"emmeans"}as a backend.
-Results are usually very similar. The major difference will be found for mixed
-models, where \code{backend = "marginaleffects"} will also average across random
-effects levels, producing "marginal predictions" (instead of "conditional
-predictions", see Heiss 2022).
+\item{backend}{Whether to use \code{"marginaleffects"} (default) or \code{"emmeans"} as
+a backend. Results are usually very similar. The major difference will be
+found for mixed models, where \code{backend = "marginaleffects"} will also average
+across random effects levels, producing "marginal predictions" (instead of
+"conditional predictions", see Heiss 2022).
+
+Another difference is that \code{backend = "marginaleffects"} will be slower than
+\code{backend = "emmeans"}. For most models, this difference is negligible. However,
+in particular complex models or large data sets fitted with \emph{glmmTMB} can be
+significantly slower.
 
 You can set a default backend via \code{options()}, e.g. use
 \code{options(modelbased_backend = "emmeans")} to use the \strong{emmeans} package or
-\code{options(modelbased_backend = "marginaleffects")} to set \strong{marginaleffects}
-as default backend.}
+\code{options(modelbased_backend = "marginaleffects")} to set \strong{marginaleffects} as
+default backend.}
 
 \item{verbose}{Use \code{FALSE} to silence messages and warnings.}
 
@@ -79,7 +112,9 @@ to functions from the \strong{emmeans} or \strong{marginaleffects} package, or t
 Bayesian models via \code{\link[bayestestR:describe_posterior]{bayestestR::describe_posterior()}}. Examples:
 \itemize{
 \item \code{insight::get_datagrid()}: Argument such as \code{length}, \code{digits} or \code{range}
-can be used to control the (number of) representative values.
+can be used to control the (number of) representative values. For integer
+variables, \code{protect_integers} modulates whether these should also be
+treated as numerics, i.e. values can have fractions or not.
 \item \strong{marginaleffects}: Internally used functions are \code{avg_predictions()} for
 means and contrasts, and \code{avg_slope()} for slopes. Therefore, arguments for
 instance like \code{vcov}, \code{equivalence}, \code{df}, \code{slope} or even \code{newdata} can be
@@ -94,6 +129,17 @@ Additional arguments can be passed to these functions.
 \item Bayesian models: For Bayesian models, parameters are cleaned using
 \code{describe_posterior()}, thus, arguments like, for example, \code{centrality},
 \code{rope_range}, or \code{test} are passed to that function.
+\item Especially for \code{estimate_contrasts()} with integer focal predictors, for
+which contrasts should be calculated, use argument \code{integer_as_numeric} to
+set the maximum number of unique values in an integer predictor to treat
+that predictor as "discrete integer" or as numeric. For the first case,
+contrasts are calculated between values of the predictor, for the latter,
+contrasts of slopes are calculated. If the integer has more than
+\code{integer_as_numeric} unique values, it is treated as numeric. Defaults to
+\code{5}.
+\item For count regression models that use an offset term, use \verb{offset = <value>}
+to fix the offset at a specific value. Or use \code{estimate = "average"}, to
+average predictions over the distribution of the offset (if appropriate).
 }}
 }
 \value{
@@ -166,6 +212,43 @@ these levels (using \code{\link[=estimate_contrasts]{estimate_contrasts()}}). Fi
 the effect of x averaged over all conditions, or instead within each
 condition (\code{using [estimate_slopes]}).
 }
+\section{Predictions and contrasts at meaningful values (data grids)}{
+
+
+To define representative values for focal predictors (specified in \code{by},
+\code{contrast}, and \code{trend}), you can use several methods. These values are
+internally generated by \code{insight::get_datagrid()}, so consult its
+documentation for more details.
+\itemize{
+\item You can directly specify values as strings or lists for \code{by}, \code{contrast},
+and \code{trend}.
+\itemize{
+\item For numeric focal predictors, use examples like \code{by = "gear = c(4, 8)"},
+\code{by = list(gear = c(4, 8))} or \code{by = "gear = 5:10"}
+\item For factor or character predictors, use \code{by = "Species = c('setosa', 'virginica')"}
+or \code{by = list(Species = c('setosa', 'virginica'))}
+}
+\item You can use "shortcuts" within square brackets, such as \code{by = "Sepal.Width = [sd]"}
+or \code{by = "Sepal.Width = [fivenum]"}
+\item For numeric focal predictors, if no representative values are specified,
+\code{length} and \code{range} control the number and type of representative values:
+\itemize{
+\item \code{length} determines how many equally spaced values are generated.
+\item \code{range} specifies the type of values, like \code{"range"} or \code{"sd"}.
+\item \code{length} and \code{range} apply to all numeric focal predictors.
+\item If you have multiple numeric predictors, \code{length} and \code{range} can accept
+multiple elements, one for each predictor.
+}
+\item For integer variables, only values that appear in the data will be included
+in the data grid, independent from the \code{length} argument. This behaviour
+can be changed by setting \code{protect_integers = FALSE}, which will then treat
+integer variables as numerics (and possibly produce fractions).
+}
+
+See also \href{https://easystats.github.io/modelbased/articles/visualisation_matrix.html}{this vignette}
+for some examples.
+}
+
 \examples{
 \dontshow{if (all(insight::check_if_installed(c("marginaleffects", "effectsize", "mgcv", "ggplot2", "see"), quietly = TRUE))) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 library(ggplot2)
@@ -199,6 +282,22 @@ slopes <- estimate_slopes(model,
 )
 summary(slopes)
 plot(slopes)
+
+# marginal effects, grouped by Species, at different values of Petal.Length
+estimate_slopes(model,
+  trend = "Petal.Length",
+  by = c("Petal.Length", "Species"), length = 10
+)
+
+# marginal effects at different values of Petal.Length
+estimate_slopes(model, trend = "Petal.Length", by = "Petal.Length", length = 10)
+
+# marginal effects at very specific values of Petal.Length
+estimate_slopes(model, trend = "Petal.Length", by = "Petal.Length=c(1, 3, 5)")
+
+# average marginal effects of Petal.Length,
+# just for the trend within a certain range
+estimate_slopes(model, trend = "Petal.Length=seq(2, 4, 0.01)")
 }
 \dontshow{\}) # examplesIf}
 }

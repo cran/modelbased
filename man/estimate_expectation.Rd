@@ -14,6 +14,7 @@ estimate_expectation(
   predict = "expectation",
   ci = 0.95,
   transform = NULL,
+  iterations = NULL,
   keep_iterations = FALSE,
   ...
 )
@@ -25,6 +26,7 @@ estimate_link(
   predict = "link",
   ci = 0.95,
   transform = NULL,
+  iterations = NULL,
   keep_iterations = FALSE,
   ...
 )
@@ -36,6 +38,7 @@ estimate_prediction(
   predict = "prediction",
   ci = 0.95,
   transform = NULL,
+  iterations = NULL,
   keep_iterations = FALSE,
   ...
 )
@@ -47,6 +50,7 @@ estimate_relation(
   predict = "expectation",
   ci = 0.95,
   transform = NULL,
+  iterations = NULL,
   keep_iterations = FALSE,
   ...
 )
@@ -88,6 +92,13 @@ be \code{TRUE}, in which case \code{insight::get_transformation()} is called to
 determine the appropriate transformation-function. Note that no standard
 errors are returned when transformations are applied.}
 
+\item{iterations}{For Bayesian models, this corresponds to the number of
+posterior draws. If \code{NULL}, will use all the draws (one for each iteration of
+the model). For frequentist models, if not \code{NULL}, will generate bootstrapped
+draws, from which bootstrapped CIs will be computed. Use \code{keep_iterations} to
+control if and how many draws will be included in the returned output (data
+frame), which can be used, for instance, for plotting.}
+
 \item{keep_iterations}{If \code{TRUE}, will keep all iterations (draws) of
 bootstrapped or Bayesian models. They will be added as additional columns
 named \code{iter_1}, \code{iter_2}, and so on. If \code{keep_iterations} is a positive
@@ -97,7 +108,8 @@ to the output. You can reshape them to a long format by running
 
 \item{...}{You can add all the additional control arguments from
 \code{\link[insight:get_datagrid]{insight::get_datagrid()}} (used when \code{data = "grid"}) and
-\code{\link[insight:get_predicted]{insight::get_predicted()}}.}
+\code{\link[insight:get_predicted]{insight::get_predicted()}}. Furthermore, for count regression models that use
+an offset term, use \verb{offset = <value>} to fix the offset at a specific value.}
 }
 \value{
 A data frame of predicted values and uncertainty intervals, with

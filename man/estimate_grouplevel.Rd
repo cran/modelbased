@@ -2,37 +2,60 @@
 % Please edit documentation in R/estimate_grouplevel.R, R/reshape_grouplevel.R
 \name{estimate_grouplevel}
 \alias{estimate_grouplevel}
+\alias{estimate_grouplevel.default}
+\alias{estimate_grouplevel.brmsfit}
 \alias{reshape_grouplevel}
+\alias{reshape_grouplevel.estimate_grouplevel}
 \title{Group-specific parameters of mixed models random effects}
 \usage{
-estimate_grouplevel(model, type = "random", ...)
+estimate_grouplevel(model, ...)
 
-reshape_grouplevel(x, indices = "all", group = "all", ...)
+\method{estimate_grouplevel}{default}(model, type = "random", ...)
+
+\method{estimate_grouplevel}{brmsfit}(
+  model,
+  type = "random",
+  dispersion = TRUE,
+  test = NULL,
+  diagnostic = NULL,
+  ...
+)
+
+reshape_grouplevel(x, ...)
+
+\method{reshape_grouplevel}{estimate_grouplevel}(x, indices = "all", group = NULL, ...)
 }
 \arguments{
 \item{model}{A mixed model with random effects.}
 
-\item{type}{\code{"random"} or \code{"total"}. If \code{"random"} (default), the coefficients correspond to the
-conditional estimates of  the random effects (as they are returned by
-\code{lme4::ranef()}). They typically correspond to the deviation of each
-individual group from their fixed effect (assuming the random effect is
-also included as a fixed effect). As such, a coefficient close to 0
-means that the participants' effect is the same as the population-level
-effect (in other words, it is "in the norm"). If \code{"total"}, it will return
-the sum of the random effect and its corresponding fixed effects, which
-internally relies on the \code{coef()} method (see \code{?coef.merMod}). Note that
-\code{type = "total"} yet does not return uncertainty indices (such as SE and CI)
-for models from \emph{lme4} or \emph{glmmTMB}, as the necessary information to
-compute them is not yet available. However, for Bayesian models, it is
-possible to compute them.}
+\item{...}{Other arguments passed to \code{\link[parameters:model_parameters]{parameters::model_parameters()}}.}
 
-\item{...}{Other arguments passed to or from other methods.}
+\item{type}{\code{"random"} or \code{"total"}. If \code{"random"} (default), the
+coefficients correspond to the conditional estimates of  the random effects
+(as they are returned by \code{lme4::ranef()}). They typically correspond to the
+deviation of each individual group from their fixed effect (assuming the
+random effect is also included as a fixed effect). As such, a coefficient
+close to 0 means that the participants' effect is the same as the
+population-level effect (in other words, it is "in the norm"). If
+\code{"total"}, it will return the sum of the random effect and its
+corresponding fixed effects, which internally relies on the \code{coef()} method
+(see \code{?coef.merMod}). Note that \code{type = "total"} yet does not return
+uncertainty indices (such as SE and CI) for models from \emph{lme4} or
+\emph{glmmTMB}, as the necessary information to compute them is not yet
+available. However, for Bayesian models, it is possible to compute them.}
+
+\item{dispersion, test, diagnostic}{Arguments passed to
+\code{\link[parameters:model_parameters]{parameters::model_parameters()}} for Bayesian models. By default, it won't
+return significance or diagnostic indices (as it is not typically very
+useful).}
 
 \item{x}{The output of \code{estimate_grouplevel()}.}
 
-\item{indices}{A list containing the indices to extract (e.g., "Coefficient").}
+\item{indices}{A character vector containing the indices (i.e., which
+columns) to extract (e.g., "Coefficient", "Median").}
 
-\item{group}{A list containing the random factors to select.}
+\item{group}{The name of the random factor to select as string value (e.g.,
+\code{"Participant"}, if the model was \code{y ~ x + (1|Participant)}.}
 }
 \description{
 Extract random parameters of each individual group in the context of mixed
@@ -58,14 +81,11 @@ random
 # Visualize random effects
 plot(random)
 
-# Reshape to wide data so that it matches the original dataframe...
-reshaped <- reshape_grouplevel(random, indices = c("Coefficient", "SE"))
+# Reshape to wide data...
+reshaped <- reshape_grouplevel(random, group = "carb", indices = c("Coefficient", "SE"))
 
 # ...and can be easily combined with the original data
-alldata <- cbind(mtcars, reshaped)
-
-# Use summary() to remove duplicated rows
-summary(reshaped)
+alldata <- merge(mtcars, reshaped)
 
 # overall coefficients
 estimate_grouplevel(model, type = "total")

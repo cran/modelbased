@@ -12,17 +12,15 @@
 #' included here will be collapsed and "averaged" over (the effect will be
 #' estimated across them). `by` can be a character (vector) naming the focal
 #' predictors, optionally including representative values or levels at which
-#' focal predictors are evaluated (e.g., `by="x=c(1,2)"`). When `estimate` is
-#' *not* `"average"`, the `by` argument is used to create a "reference grid" or
-#' "data grid" with representative values for the focal predictors. In this
+#' focal predictors are evaluated (e.g., `by = "x = c(1, 2)"`). When `estimate`
+#' is *not* `"average"`, the `by` argument is used to create a "reference grid"
+#' or "data grid" with representative values for the focal predictors. In this
 #' case, `by` can also be list of named elements. See details in
 #' [`insight::get_datagrid()`] to learn more about how to create data grids for
 #' predictors of interest.
 #' @param predict Is passed to the `type` argument in `emmeans::emmeans()` (when
 #' `backend = "emmeans"`) or in `marginaleffects::avg_predictions()` (when
-#' `backend = "marginaleffects"`). For emmeans, see also
-#' [this vignette](https://CRAN.R-project.org/package=emmeans/vignettes/transformations.html).
-#' Valid options for `predict` are:
+#' `backend = "marginaleffects"`). Valid options for `predict` are:
 #'
 #' * `backend = "marginaleffects"`: `predict` can be `"response"`, `"link"`,
 #'   `"inverse_link"` or any valid `type` option supported by model's class
@@ -36,30 +34,11 @@
 #'   response scale.
 #' * `backend = "emmeans"`: `predict` can be `"response"`, `"link"`, `"mu"`,
 #'   `"unlink"`, or `"log"`. If `predict = NULL` (default), the most appropriate
-#'   transformation is selected (which usually is `"response"`).
+#'   transformation is selected (which usually is `"response"`). See also
+#'   [this vignette](https://CRAN.R-project.org/package=emmeans/vignettes/transformations.html).
 #'
-#' `"link"` will leave the values on scale of the linear predictors.
-#' `"response"` (or `NULL`) will transform them on scale of the response
-#' variable. Thus for a logistic model, `"link"` will give estimations expressed
-#' in log-odds (probabilities on logit scale) and `"response"` in terms of
-#' probabilities. To predict distributional parameters (called "dpar" in other
-#' packages), for instance when using complex formulae in `brms` models, the
-#' `predict` argument can take the value of the parameter you want to estimate,
-#' for instance `"sigma"`, `"kappa"`, etc.
+#' See also section _Predictions on different scales_.
 #'
-#' `"response"` and `"inverse_link"` both return predictions on the response
-#' scale, however, `"response"` first calculates predictions on the response
-#' scale for each observation and *then* aggregates them by groups or levels
-#' defined in `by`. `"inverse_link"` first calculates predictions on the link
-#' scale for each observation, then aggregates them by groups or levels defined
-#' in `by`, and finally back-transforms the predictions to the response scale.
-#' Both approaches have advantages and disadvantages. `"response"` usually
-#' produces less biased predictions, but confidence intervals might be outside
-#' reasonable bounds (i.e., for instance can be negative for count data). The
-#' `"inverse_link"` approach is more robust in terms of confidence intervals, but
-#' might produce biased predictions. In particular for mixed models, using
-#' `"response"` is recommended, because averaging across random effects groups
-#' is more accurate.
 #' @param estimate The `estimate` argument determines how predictions are
 #' averaged ("marginalized") over variables not specified in `by` or `contrast`
 #' (non-focal predictors). It controls whether predictions represent a "typical"
@@ -91,16 +70,21 @@
 #'
 #' You can set a default option for the `estimate` argument via `options()`,
 #' e.g. `options(modelbased_estimate = "average")`
-#' @param backend Whether to use `"marginaleffects"` or `"emmeans"`as a backend.
-#' Results are usually very similar. The major difference will be found for mixed
-#' models, where `backend = "marginaleffects"` will also average across random
-#' effects levels, producing "marginal predictions" (instead of "conditional
-#' predictions", see Heiss 2022).
+#' @param backend Whether to use `"marginaleffects"` (default) or `"emmeans"` as
+#' a backend. Results are usually very similar. The major difference will be
+#' found for mixed models, where `backend = "marginaleffects"` will also average
+#' across random effects levels, producing "marginal predictions" (instead of
+#' "conditional predictions", see Heiss 2022).
+#'
+#' Another difference is that `backend = "marginaleffects"` will be slower than
+#' `backend = "emmeans"`. For most models, this difference is negligible. However,
+#' in particular complex models or large data sets fitted with *glmmTMB* can be
+#' significantly slower.
 #'
 #' You can set a default backend via `options()`, e.g. use
 #' `options(modelbased_backend = "emmeans")` to use the **emmeans** package or
-#' `options(modelbased_backend = "marginaleffects")` to set **marginaleffects**
-#' as default backend.
+#' `options(modelbased_backend = "marginaleffects")` to set **marginaleffects** as
+#' default backend.
 #' @param transform A function applied to predictions and confidence intervals
 #' to (back-) transform results, which can be useful in case the regression
 #' model has a transformed response variable (e.g., `lm(log(y) ~ x)`). For
@@ -120,7 +104,9 @@
 #' to functions from the **emmeans** or **marginaleffects** package, or to process
 #' Bayesian models via [bayestestR::describe_posterior()]. Examples:
 #' - `insight::get_datagrid()`: Argument such as `length`, `digits` or `range`
-#'   can be used to control the (number of) representative values.
+#'   can be used to control the (number of) representative values. For integer
+#'   variables, `protect_integers` modulates whether these should also be
+#'   treated as numerics, i.e. values can have fractions or not.
 #' - **marginaleffects**: Internally used functions are `avg_predictions()` for
 #'   means and contrasts, and `avg_slope()` for slopes. Therefore, arguments for
 #'   instance like `vcov`, `equivalence`, `df`, `slope` or even `newdata` can be
@@ -135,12 +121,136 @@
 #' - Bayesian models: For Bayesian models, parameters are cleaned using
 #'   `describe_posterior()`, thus, arguments like, for example, `centrality`,
 #'   `rope_range`, or `test` are passed to that function.
+#' - Especially for `estimate_contrasts()` with integer focal predictors, for
+#'   which contrasts should be calculated, use argument `integer_as_numeric` to
+#'   set the maximum number of unique values in an integer predictor to treat
+#'   that predictor as "discrete integer" or as numeric. For the first case,
+#'   contrasts are calculated between values of the predictor, for the latter,
+#'   contrasts of slopes are calculated. If the integer has more than
+#'   `integer_as_numeric` unique values, it is treated as numeric. Defaults to
+#'   `5`.
+#' - For count regression models that use an offset term, use `offset = <value>`
+#'   to fix the offset at a specific value. Or use `estimate = "average"`, to
+#'   average predictions over the distribution of the offset (if appropriate).
 #'
 #' @inheritParams parameters::model_parameters.default
 #' @inheritParams estimate_expectation
-#' @inherit estimate_slopes details
 #'
-#' @return A data frame of estimated marginal means.
+#' @details
+#' The [estimate_slopes()], [estimate_means()] and [estimate_contrasts()]
+#' functions are forming a group, as they are all based on *marginal*
+#' estimations (estimations based on a model). All three are built on the
+#' **emmeans** or **marginaleffects** package (depending on the `backend`
+#' argument), so reading its documentation (for instance [emmeans::emmeans()],
+#' [emmeans::emtrends()] or this [website](https://marginaleffects.com/)) is
+#' recommended to understand the idea behind these types of procedures.
+#'
+#' - Model-based **predictions** is the basis for all that follows. Indeed,
+#' the first thing to understand is how models can be used to make predictions
+#' (see [estimate_link()]). This corresponds to the predicted response (or
+#' "outcome variable") given specific predictor values of the predictors (i.e.,
+#' given a specific data configuration). This is why the concept of [`reference
+#' grid()`][insight::get_datagrid()] is so important for direct predictions.
+#'
+#' - **Marginal "means"**, obtained via [estimate_means()], are an extension
+#' of such predictions, allowing to "average" (collapse) some of the predictors,
+#' to obtain the average response value at a specific predictors configuration.
+#' This is typically used when some of the predictors of interest are factors.
+#' Indeed, the parameters of the model will usually give you the intercept value
+#' and then the "effect" of each factor level (how different it is from the
+#' intercept). Marginal means can be used to directly give you the mean value of
+#' the response variable at all the levels of a factor. Moreover, it can also be
+#' used to control, or average over predictors, which is useful in the case of
+#' multiple predictors with or without interactions.
+#'
+#' - **Marginal contrasts**, obtained via [estimate_contrasts()], are
+#' themselves at extension of marginal means, in that they allow to investigate
+#' the difference (i.e., the contrast) between the marginal means. This is,
+#' again, often used to get all pairwise differences between all levels of a
+#' factor. It works also for continuous predictors, for instance one could also
+#' be interested in whether the difference at two extremes of a continuous
+#' predictor is significant.
+#'
+#' - Finally, **marginal effects**, obtained via [estimate_slopes()], are
+#' different in that their focus is not values on the response variable, but the
+#' model's parameters. The idea is to assess the effect of a predictor at a
+#' specific configuration of the other predictors. This is relevant in the case
+#' of interactions or non-linear relationships, when the effect of a predictor
+#' variable changes depending on the other predictors. Moreover, these effects
+#' can also be "averaged" over other predictors, to get for instance the
+#' "general trend" of a predictor over different factor levels.
+#'
+#' **Example:** Let's imagine the following model `lm(y ~ condition * x)` where
+#' `condition` is a factor with 3 levels A, B and C and `x` a continuous
+#' variable (like age for example). One idea is to see how this model performs,
+#' and compare the actual response y to the one predicted by the model (using
+#' [estimate_expectation()]). Another idea is evaluate the average mean at each of
+#' the condition's levels (using [estimate_means()]), which can be useful to
+#' visualize them. Another possibility is to evaluate the difference between
+#' these levels (using [estimate_contrasts()]). Finally, one could also estimate
+#' the effect of x averaged over all conditions, or instead within each
+#' condition (`using [estimate_slopes]`).
+#'
+#' @section Predictions and contrasts at meaningful values (data grids):
+#'
+#' To define representative values for focal predictors (specified in `by`,
+#' `contrast`, and `trend`), you can use several methods. These values are
+#' internally generated by `insight::get_datagrid()`, so consult its
+#' documentation for more details.
+#'
+#' * You can directly specify values as strings or lists for `by`, `contrast`,
+#'   and `trend`.
+#'   * For numeric focal predictors, use examples like `by = "gear = c(4, 8)"`,
+#'     `by = list(gear = c(4, 8))` or `by = "gear = 5:10"`
+#'   * For factor or character predictors, use `by = "Species = c('setosa', 'virginica')"`
+#'     or `by = list(Species = c('setosa', 'virginica'))`
+#' * You can use "shortcuts" within square brackets, such as `by = "Sepal.Width = [sd]"`
+#'   or `by = "Sepal.Width = [fivenum]"`
+#' * For numeric focal predictors, if no representative values are specified,
+#'   `length` and `range` control the number and type of representative values:
+#'   * `length` determines how many equally spaced values are generated.
+#'   * `range` specifies the type of values, like `"range"` or `"sd"`.
+#'   * `length` and `range` apply to all numeric focal predictors.
+#'   * If you have multiple numeric predictors, `length` and `range` can accept
+#'     multiple elements, one for each predictor.
+#' * For integer variables, only values that appear in the data will be included
+#'   in the data grid, independent from the `length` argument. This behaviour
+#'   can be changed by setting `protect_integers = FALSE`, which will then treat
+#'   integer variables as numerics (and possibly produce fractions).
+#'
+#' See also [this vignette](https://easystats.github.io/modelbased/articles/visualisation_matrix.html)
+#' for some examples.
+#'
+#' @section Predictions on different scales:
+#'
+#' The `predict` argument allows to generate predictions on different scales of
+#' the response variable. The `"link"` option does not apply to all models, and
+#' usually not to Gaussian models. `"link"` will leave the values on scale of
+#' the linear predictors. `"response"` (or `NULL`) will transform them on scale
+#' of the response variable. Thus for a logistic model, `"link"` will give
+#' estimations expressed in log-odds (probabilities on logit scale) and
+#' `"response"` in terms of probabilities.
+#'
+#' To predict distributional parameters (called "dpar" in other packages), for
+#' instance when using complex formulae in `brms` models, the `predict` argument
+#' can take the value of the parameter you want to estimate, for instance
+#' `"sigma"`, `"kappa"`, etc.
+#'
+#' `"response"` and `"inverse_link"` both return predictions on the response
+#' scale, however, `"response"` first calculates predictions on the response
+#' scale for each observation and *then* aggregates them by groups or levels
+#' defined in `by`. `"inverse_link"` first calculates predictions on the link
+#' scale for each observation, then aggregates them by groups or levels defined
+#' in `by`, and finally back-transforms the predictions to the response scale.
+#' Both approaches have advantages and disadvantages. `"response"` usually
+#' produces less biased predictions, but confidence intervals might be outside
+#' reasonable bounds (i.e., for instance can be negative for count data). The
+#' `"inverse_link"` approach is more robust in terms of confidence intervals,
+#' but might produce biased predictions. However, you can try to set
+#' `bias_correction = TRUE`, to adjust for this bias.
+#'
+#' In particular for mixed models, using `"response"` is recommended, because
+#' averaging across random effects groups is then more accurate.
 #'
 #' @section Global Options to Customize Estimation of Marginal Means:
 #'
@@ -151,6 +261,8 @@
 #'
 #' - `modelbased_estimate`: `options(modelbased_estimate = <string>)` will
 #'   set a default value for the `estimate` argument.
+#'
+#' @return A data frame of estimated marginal means.
 #'
 #' @references
 #' Chatton, A. and Rohrer, J.M. 2024. The Causal Cookbook: Recipes for
@@ -188,12 +300,12 @@
 #'
 #' \dontrun{
 #' # same for factors: filter by specific levels
-#' estimate_means(model, by = "Species=c('versicolor', 'setosa')")
-#' estimate_means(model, by = c("Species", "Sepal.Width=0"))
+#' estimate_means(model, by = "Species = c('versicolor', 'setosa')")
+#' estimate_means(model, by = c("Species", "Sepal.Width = 0"))
 #'
 #' # estimate marginal average of response at values for numeric predictor
 #' estimate_means(model, by = "Sepal.Width", length = 5)
-#' estimate_means(model, by = "Sepal.Width=c(2, 4)")
+#' estimate_means(model, by = "Sepal.Width = c(2, 4)")
 #'
 #' # or provide the definition of the data grid as list
 #' estimate_means(
@@ -202,13 +314,18 @@
 #' )
 #'
 #' # Methods that can be applied to it:
-#' means <- estimate_means(model, by = c("Species", "Sepal.Width=0"))
+#' means <- estimate_means(model, by = c("Species", "Sepal.Width = 0"))
 #'
 #' plot(means) # which runs visualisation_recipe()
 #' standardize(means)
 #'
 #' # grids for numeric predictors, combine range and length
 #' model <- lm(Sepal.Length ~ Sepal.Width * Petal.Length, data = iris)
+#'
+#' # create a "grid": value range for first numeric predictor, mean +/-1 SD
+#' # for remaining numeric predictors.
+#' estimate_means(model, c("Sepal.Width", "Petal.Length"), range = "grid")
+#'
 #' # range from minimum to maximum spread over four values,
 #' # and mean +/- 1 SD (a total of three values)
 #' estimate_means(
@@ -233,12 +350,23 @@ estimate_means <- function(model,
                            by = "auto",
                            predict = NULL,
                            ci = 0.95,
-                           estimate = getOption("modelbased_estimate", "typical"),
+                           estimate = NULL,
                            transform = NULL,
                            keep_iterations = FALSE,
-                           backend = getOption("modelbased_backend", "marginaleffects"),
+                           backend = NULL,
                            verbose = TRUE,
                            ...) {
+  # Process argument ---------------------------------------------------------
+  # --------------------------------------------------------------------------
+
+  # set defaults
+  if (is.null(estimate)) {
+    estimate <- getOption("modelbased_estimate", "typical")
+  }
+  if (is.null(backend)) {
+    backend <- getOption("modelbased_backend", "marginaleffects")
+  }
+
   # validate input
   estimate <- insight::validate_argument(
     estimate,
@@ -246,7 +374,7 @@ estimate_means <- function(model,
   )
 
   if (backend == "emmeans") {
-    # Emmeans ------------------------------------------------------------------
+    # Emmeans ----------------------------------------------------------------
     estimated <- get_emmeans(
       model,
       by = by,
@@ -257,7 +385,7 @@ estimate_means <- function(model,
     )
     means <- .format_emmeans_means(estimated, model, ci = ci, verbose = verbose, ...)
   } else {
-    # Marginalmeans ------------------------------------------------------------
+    # Marginalmeans ----------------------------------------------------------
     estimated <- get_marginalmeans(
       model,
       by = by,
@@ -296,7 +424,7 @@ estimate_means <- function(model,
   attr(means, "response") <- insight::find_response(model)
   attr(means, "ci") <- ci
   attr(means, "backend") <- backend
-  attr(means, "coef_name") <- intersect(.valid_coefficient_names(), colnames(means))
+  attr(means, "coef_name") <- intersect(.valid_coefficient_names(model), colnames(means))
 
   # add attributes from workhorse function
   attributes(means) <- utils::modifyList(attributes(means), info[.info_elements()])

@@ -150,7 +150,6 @@
 #' various examples, tutorials and usecases.
 #'
 #' @inheritParams get_emmeans
-#' @inheritParams bayestestR::describe_posterior
 #' @param data A data frame with model's predictors to estimate the response. If
 #' `NULL`, the model's data is used. If `"grid"`, the model matrix is obtained
 #' (through [insight::get_datagrid()]).
@@ -179,9 +178,16 @@
 #' be `TRUE`, in which case `insight::get_transformation()` is called to
 #' determine the appropriate transformation-function. Note that no standard
 #' errors are returned when transformations are applied.
+#' @param iterations For Bayesian models, this corresponds to the number of
+#' posterior draws. If `NULL`, will use all the draws (one for each iteration of
+#' the model). For frequentist models, if not `NULL`, will generate bootstrapped
+#' draws, from which bootstrapped CIs will be computed. Use `keep_iterations` to
+#' control if and how many draws will be included in the returned output (data
+#' frame), which can be used, for instance, for plotting.
 #' @param ... You can add all the additional control arguments from
 #' [insight::get_datagrid()] (used when `data = "grid"`) and
-#' [insight::get_predicted()].
+#' [insight::get_predicted()]. Furthermore, for count regression models that use
+#' an offset term, use `offset = <value>` to fix the offset at a specific value.
 #'
 #' @return A data frame of predicted values and uncertainty intervals, with
 #' class `"estimate_predicted"`. Methods for [`visualisation_recipe()`][visualisation_recipe.estimate_predicted]
@@ -235,6 +241,7 @@ estimate_expectation <- function(model,
                                  predict = "expectation",
                                  ci = 0.95,
                                  transform = NULL,
+                                 iterations = NULL,
                                  keep_iterations = FALSE,
                                  ...) {
   .estimate_predicted(
@@ -242,6 +249,7 @@ estimate_expectation <- function(model,
     data = data,
     by = by,
     ci = ci,
+    iterations = iterations,
     keep_iterations = keep_iterations,
     predict = predict,
     transform = transform,
@@ -258,6 +266,7 @@ estimate_link <- function(model,
                           predict = "link",
                           ci = 0.95,
                           transform = NULL,
+                          iterations = NULL,
                           keep_iterations = FALSE,
                           ...) {
   # reset to NULL if only "by" was specified
@@ -270,6 +279,7 @@ estimate_link <- function(model,
     data = data,
     by = by,
     ci = ci,
+    iterations = iterations,
     keep_iterations = keep_iterations,
     predict = predict,
     transform = transform,
@@ -285,6 +295,7 @@ estimate_prediction <- function(model,
                                 predict = "prediction",
                                 ci = 0.95,
                                 transform = NULL,
+                                iterations = NULL,
                                 keep_iterations = FALSE,
                                 ...) {
   .estimate_predicted(
@@ -292,6 +303,7 @@ estimate_prediction <- function(model,
     data = data,
     by = by,
     ci = ci,
+    iterations = iterations,
     keep_iterations = keep_iterations,
     predict = predict,
     transform = transform,
@@ -307,6 +319,7 @@ estimate_relation <- function(model,
                               predict = "expectation",
                               ci = 0.95,
                               transform = NULL,
+                              iterations = NULL,
                               keep_iterations = FALSE,
                               ...) {
   # reset to NULL if only "by" was specified
@@ -319,6 +332,7 @@ estimate_relation <- function(model,
     data = data,
     by = by,
     ci = ci,
+    iterations = iterations,
     keep_iterations = keep_iterations,
     predict = predict,
     transform = transform,
@@ -336,11 +350,17 @@ estimate_relation <- function(model,
                                 predict = "expectation",
                                 ci = 0.95,
                                 transform = NULL,
+                                iterations = NULL,
                                 keep_iterations = FALSE,
                                 ...) {
   # only "by" or "data", but not both
   if (!is.null(by) && !is.null(data)) {
     insight::format_error("You can only specify one of `by` or `data`, but not both.")
+  }
+
+  # keep_iterations cannot be larger than interations
+  if (!is.null(keep_iterations) && !is.null(iterations) && is.numeric(keep_iterations) && is.numeric(iterations) && keep_iterations > iterations) { # nolint
+    insight::format_error("`keep_iterations` cannot be larger than `iterations`.")
   }
 
   # call "get_data()" only once...
@@ -351,14 +371,20 @@ estimate_relation <- function(model,
   # model and data properties
   if (is_model) {
     # for models, get predictors, response etc.
-    variables <- insight::find_predictors(model, effects = "all", flatten = TRUE)
+    variables <- c(
+      insight::find_predictors(model, effects = "all", flatten = TRUE),
+      insight::find_weights(model),
+      insight::find_offset(model)
+    )
     model_response <- insight::find_response(model)
+    model_offset <- insight::find_offset(model)
     is_nullmodel <- isTRUE(.safe(insight::is_nullmodel(model)))
     grouplevel_effects <- insight::find_random(model, flatten = TRUE, split_nested = TRUE)
   } else {
     # for stuff like data frame, no response and no null model
     variables <- colnames(model_data)
     model_response <- NULL
+    model_offset <- NULL
     is_nullmodel <- FALSE
     grouplevel_effects <- NULL
   }
@@ -411,10 +437,15 @@ estimate_relation <- function(model,
   grid_specs <- attributes(data)
 
   # Get response for later residuals -------------
-  if (!is.null(model_response) && model_response %in% names(data)) {
+  if (!is.null(model_response) && length(model_response) == 1 && model_response %in% names(data)) { # nolint
     response <- data[[model_response]]
   } else {
     response <- NULL
+  }
+
+  # handle offsets
+  if (!is.null(dots$offset) && !is.null(model_offset)) {
+    data[[model_offset]] <- dots$offset
   }
 
   # Keep only predictors (and response) --------
@@ -431,13 +462,17 @@ estimate_relation <- function(model,
     model,
     data = data,
     predict = predict,
-    ci = ci
+    ci = ci,
+    iterations = iterations
   )
+
   # for predicting grouplevel random effects, add "allow.new.levels"
   if (!is.null(grouplevel_effects) && any(grouplevel_effects %in% grid_specs$at_spec$varname)) {
     prediction_args$allow.new.levels <- TRUE
     dots$allow.new.levels <- NULL
   }
+
+  # get predictions
   predictions <- do.call(insight::get_predicted, c(prediction_args, dots))
   out <- as.data.frame(predictions, keep_iterations = keep_iterations)
 
@@ -448,12 +483,14 @@ estimate_relation <- function(model,
   }
 
   # remove response variable from data frame, as this variable is predicted
-  if (!is.null(model_response) && model_response %in% colnames(out)) {
+  if (!is.null(model_response) && length(model_response) == 1 && model_response %in% colnames(out)) { # nolint
     out[[model_response]] <- NULL
   }
 
-  # clean-up: remove "Row" variable (from ordinal and alike)
-  out[["Row"]] <- NULL
+  # keep row-column, but make sure it's integer
+  if ("Row" %in% colnames(out)) {
+    out[["Row"]] <- insight::format_value(out[["Row"]], protect_integers = TRUE)
+  }
 
   # Add residuals
   if (!is.null(response)) {
@@ -475,6 +512,7 @@ estimate_relation <- function(model,
 
   # Store relevant information
   attr(out, "ci") <- ci
+  attr(out, "iterations") <- iterations
   attr(out, "keep_iterations") <- keep_iterations
   attr(out, "response") <- model_response
   attr(out, "transform") <- !is.null(transform)
@@ -484,7 +522,7 @@ estimate_relation <- function(model,
   attr(out, "preserve_range") <- grid_specs$preserve_range
   attr(out, "table_title") <- c("Model-based Predictions", "blue")
   attr(out, "coef_name") <- "Predicted"
-  attr(out, "model_info") <- insight::model_info(model)
+  attr(out, "model_info") <- insight::model_info(model, response = 1)
   attr(out, "table_footer") <- .table_footer(
     out,
     by = grid_specs$at,

@@ -25,7 +25,7 @@ get_marginalmeans <- function(model,
                               by = "auto",
                               predict = NULL,
                               ci = 0.95,
-                              estimate = getOption("modelbased_estimate", "typical"),
+                              estimate = NULL,
                               transform = NULL,
                               keep_iterations = FALSE,
                               verbose = TRUE,
@@ -39,6 +39,11 @@ get_marginalmeans <- function(model,
   dots <- list(...)
   comparison <- dots$hypothesis
 
+  # set defaults
+  if (is.null(estimate)) {
+    estimate <- getOption("modelbased_estimate", "typical")
+  }
+
   # validate input
   estimate <- insight::validate_argument(
     estimate,
@@ -46,10 +51,13 @@ get_marginalmeans <- function(model,
   )
 
   # model details
-  model_info <- insight::model_info(model, verbose = FALSE)
+  model_info <- insight::model_info(model, response = 1, verbose = FALSE)
 
   # Guess arguments
   my_args <- .guess_marginaleffects_arguments(model, by, verbose = verbose, ...)
+
+  # inform user about appropriate use of offset-terms
+  .check_offset(model, estimate, offset = dots$offset, verbose = verbose)
 
   # find default response-type, and get information about back transformation
   predict_args <- .get_marginaleffects_type_argument(
@@ -99,6 +107,14 @@ get_marginalmeans <- function(model,
     datagrid <- do.call(insight::get_datagrid, dg_args)
     datagrid_info <- attributes(datagrid)
 
+    # handle offsets
+    if (!is.null(dots$offset)) {
+      model_offset <- insight::find_offset(model)
+      if (!is.null(model_offset)) {
+        datagrid[[model_offset]] <- dots$offset
+      }
+    }
+
     # restore data types -  if we have defined numbers in `by`, like
     # `by = "predictor = 5"`, and `predictor` was a factor, it is returned as
     # numeric in the data grid. Fix this here, else marginal effects will fail
@@ -112,10 +128,10 @@ get_marginalmeans <- function(model,
   # --------------------------------------------------------------------------
 
   # remove user-arguments from "..." that will be used when calling marginaleffects
-  dots[c("by", "conf_level", "type", "digits", "bias_correction", "sigma")] <- NULL
+  dots[c("by", "conf_level", "type", "digits", "bias_correction", "sigma", "offset")] <- NULL
 
   # model df - can be passed via `...`
-  if (is.null(dots$df)) {
+  if (is.null(dots$df) && !model_info$is_bayesian) {
     dots$df <- insight::get_df(model, type = "wald", verbose = FALSE)
   }
 
@@ -155,7 +171,7 @@ get_marginalmeans <- function(model,
   # ---------------------------
 
   # handle distributional parameters
-  if (predict_args$predict %in% .brms_aux_elements() && inherits(model, "brmsfit")) {
+  if (predict_args$predict %in% .brms_aux_elements(model) && inherits(model, "brmsfit")) {
     fun_args$dpar <- predict_args$predict
   } else {
     fun_args$type <- predict_args$predict
@@ -209,7 +225,7 @@ get_marginalmeans <- function(model,
   # just need to add "hypothesis" argument
   means <- .call_marginaleffects(fun_args)
 
-  # Fifth step: post-processin marginal means----------------------------------
+  # Fifth step: post-processing marginal means----------------------------------
   # ---------------------------------------------------------------------------
 
   # filter "by" rows when we have "average" marginalization, because we don't
@@ -265,6 +281,7 @@ get_marginalmeans <- function(model,
 
 # call marginaleffects and process potential errors ---------------------------
 
+
 .call_marginaleffects <- function(fun_args, type = "means") {
   out <- tryCatch(
     suppressWarnings(do.call(marginaleffects::avg_predictions, fun_args)),
@@ -273,30 +290,52 @@ get_marginalmeans <- function(model,
 
   # display informative error
   if (inherits(out, "simpleError")) {
-    # what was requested?
-    if (!is.null(fun_args$hypothesis)) {
-      fun <- "marginal contrasts"
-    } else {
-      fun <- "marginal means"
-    }
-    msg <- c(
-      paste0("Sorry, calculating ", fun, " failed with following error:"),
-      insight::color_text(gsub("\n", "", out$message, fixed = TRUE), "red")
-    )
-    # we get this error when we should use counterfactuals - tell
-    # # user about possible solution
-    if (grepl("not found in column names", out$message, fixed = TRUE)) {
-      msg <- c(msg, "\nIt seems that not all required levels of the focal terms are available in the provided data. If you want predictions extrapolated to a hypothetical target population, try setting `estimate=\"population\".") # nolint
-    }
-    # error
-    insight::format_error(msg)
+    insight::format_error(.marginaleffects_errors(out, fun_args))
   }
 
   out
 }
 
 
-# filter datagrid foe `estimate = "average"`---------------------------------
+.marginaleffects_errors <- function(out, fun_args) {
+  # what was requested?
+  if (!is.null(fun_args$hypothesis)) {
+    fun <- "marginal contrasts"
+  } else {
+    fun <- "marginal means"
+  }
+  # clean original error message
+  out$message <- gsub("\\s+", " ", gsub("\n", "", out$message))
+  # setup clear error message
+  msg <- c(
+    paste0("Sorry, calculating ", fun, " failed with following error:"),
+    insight::color_text(gsub("\n", "", out$message, fixed = TRUE), "red")
+  )
+  # handle exceptions ------------------------------------------------------
+  # we get this error when we should use counterfactuals
+  if (grepl("not found in column names", out$message, fixed = TRUE)) {
+    msg <- c(msg, "\nIt seems that not all required levels of the focal terms are available in the provided data. If you want predictions extrapolated to a hypothetical target population, try setting `estimate=\"population\".") # nolint
+  }
+  # we get this error for models with complex random effects structures in glmmTMB
+  if (grepl("map factor length must equal", out$message, fixed = TRUE) || grepl("cannot allocate", out$message, fixed = TRUE)) { # nolint
+    msg <- c(
+      msg,
+      paste0(
+        "\nYou may try using the `emmeans` backend, e.g. `estimate_means(model, by = c(",
+        toString(paste0("\"", fun_args$by, "\"")),
+        "), backend = \"emmeans\")`, or use `estimate_relation(model, by = c(",
+        toString(paste0("\"", fun_args$by, "\"")),
+        "))` instead. For contrasts or pairwise comparisons, save the output of `estimate_relation()` and pass it to `estimate_contrasts()`, e.g.\n" # nolint
+      ),
+      paste0("out <- estimate_relation(model, by = c(", toString(paste0("\"", fun_args$by, "\"")), "))"),
+      paste0("estimate_contrasts(out, contrast = c(", toString(paste0("\"", fun_args$by, "\"")), "))")
+    )
+  }
+  msg
+}
+
+
+# filter datagrid for `estimate = "average"`---------------------------------
 
 .filter_datagrid_average <- function(means, estimate, datagrid, datagrid_info) {
   # filter "by" rows when we have "average" marginalization, because we don't
@@ -422,4 +461,37 @@ get_marginalmeans <- function(model,
   contrast <- validate_arg(contrast, "contrast")
 
   list(by = by, contrast = contrast)
+}
+
+
+.check_offset <- function(model, estimate, offset = NULL, verbose = TRUE) {
+  # check if model has an offset at all
+  if (!is.null(insight::find_offset(model)) && verbose) {
+    msg <- NULL
+    if (is.null(offset)) {
+      # if no offset argument was specified, tell user what this means
+      msg <- switch(estimate,
+        specific = ,
+        typical = "Model contains an offset-term, which is set to its mean value. If you want to average predictions over the distribution of the offset (if appropriate), use `estimate = \"average\"`. If you want to fix the offset to a specific value, for instance `1`, use `offset = 1`.",
+        "Model contains an offset-term and you average predictions over the distribution of that offset. If you want to fix the offset to a specific value, for instance `1`, use `offset = 1` and set `estimate = \"typical\"`."
+      )
+      # if offset term is log-transformed, tell user. offset should be fixed then
+      log_offset <- insight::find_transformation(insight::find_offset(model, as_term = TRUE))
+      if (!is.null(log_offset) && startsWith(log_offset, "log")) {
+        msg <- c(
+          msg,
+          "We also found that the model has a log-transformed offset term. If you use the `offset` argument, the log-transformation will automatically be applied to the provided offset-value. I.e., consider using, for instance, `offset = 10` and not `offset = log(10)`."
+        )
+      }
+    } else {
+      # if offset was specified, and estimate averages over predictions, tell this
+      msg <- switch(estimate,
+        average = ,
+        population = paste0("For `estimate = \"", estimate, "\"`, predictions are averaged over the distribution of the offset and the `offset` argument is ignored. If you want to fix the offset to a specific value, for instance `1`, use `offset = 1` and set `estimate = \"typical\"`.")
+      )
+    }
+    if (!is.null(msg)) {
+      insight::format_alert(msg)
+    }
+  }
 }

@@ -6,9 +6,12 @@
 #' @param x An object returned by the different `estimate_*()` functions.
 #' @param include_grid Logical, if `TRUE`, the data grid is included in the
 #' table output. Only applies to prediction-functions like `estimate_relation()`
-#' or `estimate_link()`.
+#' or `estimate_link()`. Default is `NULL`, which will set the value based on
+#' `options(modelbased_include_grid)`, and use `FALSE` is no option is set.
 #' @param full_labels Logical, if `TRUE` (default), all labels for focal terms
 #' are shown. If `FALSE`, redundant (duplicated) labels are removed from rows.
+#' Default is `NULL`, which will set the value based on
+#' `options(modelbased_full_labels)`, and use `TRUE` is no option is set.
 #' @param ... Arguments passed to `insight::format_table()` or
 #' `insight::export_table()`.
 #'
@@ -53,25 +56,45 @@
 #'
 #' @export
 print.estimate_contrasts <- function(x,
-                                     select = getOption("modelbased_select", NULL),
-                                     include_grid = getOption("modelbased_include_grid", FALSE),
-                                     full_labels = getOption("modelbased_full_labels", TRUE),
+                                     select = NULL,
+                                     include_grid = NULL,
+                                     full_labels = NULL,
                                      ...) {
+  # Process argument ---------------------------------------------------------
+  # --------------------------------------------------------------------------
+
+  # set defaults
+  if (is.null(select)) {
+    select <- getOption("modelbased_select", NULL)
+  }
+  if (is.null(include_grid)) {
+    include_grid <- getOption("modelbased_include_grid", FALSE)
+  }
+  if (is.null(full_labels)) {
+    full_labels <- getOption("modelbased_full_labels", TRUE)
+  }
+
   # copy original
   out <- x
   # get attributes, but remove some of them - else, matching attribute fails
   attr <- attributes(x)
   attr <- attr[setdiff(names(attr), c("names", "row.names"))]
 
-  # format table
-  out <- format(out, select = select, include_grid = include_grid, ...)
-  attributes(out) <- utils::modifyList(attributes(out), attr)
+  # handle exceptions, e.g. drift diffusion (Wiener) models
+  if (isTRUE(attr$model_info$is_wiener) || isTRUE(attr$model_info$is_rtchoice)) {
+    out <- .print_drift_diffusion(out, select, ...)
+    align <- NULL
+  } else {
+    # format table
+    out <- format(out, select = select, include_grid = include_grid, ...)
+    attributes(out) <- suppressWarnings(utils::modifyList(attributes(out), attr))
 
-  # remove redundant labels, for "by" variables
-  out <- .remove_redundant_labels(x, out, full_labels)
+    # remove redundant labels, for "by" variables
+    out <- .remove_redundant_labels(x, out, full_labels)
 
-  # set alignment, left-align first and non-numerics
-  align <- .align_columns(x, out)
+    # set alignment, left-align first and non-numerics
+    align <- .align_columns(x, out)
+  }
 
   cat(insight::export_table(out, align = align, ...))
   invisible(x)
@@ -132,4 +155,37 @@ print.estimate_grouplevel <- print.estimate_contrasts
     align <- sub(paste0("(.{", i - 1, "})."), "\\1l", align)
   }
   align
+}
+
+
+.print_drift_diffusion <- function(out, select = NULL, ...) {
+  # convert to factor, so we keep order of components when using "split"
+  out$Component <- factor(out$Component, levels = unique(out$Component))
+  responses <- levels(out$Component)
+
+  # split predictions into (two) tables
+  out <- split(out, out$Component)
+
+  # we need some preparation, e.g. drop or modify some columns, attributes etc.
+  lapply(names(out), function(i) {
+    # component goes into title, no longer needed here...
+    out[[i]]$Component <- NULL
+
+    # for Wiener models, we have one column per response component (reaction time,
+    # discrete choice), we want only one of the two columns for each component
+    out[[i]][[setdiff(names(out), i)]] <- NULL
+
+    # modify table title (add component name)
+    tt <- attributes(out[[i]])$table_title
+    attr(out[[i]], "table_title") <- c(paste0(tt[1], ": ", i), "blue")
+
+    # format table
+    out[[i]] <- format(out[[i]], select = select, ...)
+
+    # remove footer for every subtable, except for the last one
+    if (i != responses[length(responses)]) {
+      attr(out[[i]], "table_footer") <- NULL
+    }
+    out[[i]]
+  })
 }

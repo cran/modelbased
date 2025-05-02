@@ -911,5 +911,15 @@ test_that("estimate_contrast, don't calculate slopes for integers", {
     regex = "Please specify"
   )
   out <- estimate_contrasts(m, "hp", by = "gear")
-  expect_identical(dim(out), c(3L, 8L))
+  expect_identical(dim(out), c(3L, 9L))
+})
+
+
+test_that("estimate_contrast, informative error when `by` and `contrast` are the same", {
+  data(iris)
+  m <- lm(Petal.Length ~ Species, data = iris)
+  expect_error(
+    estimate_contrasts(m, "Species = 'versicolor'", by = "Species = 'setosa'"),
+    regex = "You cannot"
+  )
 })

@@ -1,4 +1,6 @@
+’s
 ANCOVAs
+Arel
 ATE
 ATEs
 ATT
@@ -6,15 +8,22 @@ ATU
 Axelsson
 BH
 BLUPs
+Bundock
+cdot
 Chatton
 CJ
-Dom
+coefficients’
+diag
 Dickerman
+Dom
 DS
 EFC
+EMM
+EMMs
 EUROFAMCARE
 Fitzsimons
 GAMM
+GLMM
 GLMMs
 GLM's
 Heiss
@@ -72,6 +81,7 @@ blogpost
 bocode
 bonferroni
 bootES
+brms
 caregiving
 ception
 codecov
@@ -115,6 +125,7 @@ intersectionality
 intra
 io
 jmr
+labelled
 lifecycle
 lme
 lme4
@@ -141,6 +152,7 @@ reproducibility
 rescaled
 rescales
 rootSolve
+rstanarm
 salis
 spinoff
 ssmph

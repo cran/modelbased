@@ -14,15 +14,17 @@
   adjusted_for <- info$adjusted_for
   transform <- info$transform
   model_info <- info$model_info
+  marginalization <- info$estimate
+
   # make sure we definitely have model information
   if (is.null(model_info) && !is.null(model)) {
-    model_info <- insight::model_info(model)
+    model_info <- insight::model_info(model, response = 1)
   }
 
 
   # name of predicted response -----------------------------------------------
 
-  table_footer <- paste0("\nVariable predicted: ", insight::find_response(model))
+  table_footer <- paste0("\nVariable predicted: ", toString(insight::find_response(model)))
 
 
   # modulated predictors (focal terms) ---------------------------------------
@@ -59,11 +61,17 @@
         }
       }
     }
-    average_string <- switch(type,
-      predictions = "controlled",
-      "averaged"
-    )
-    table_footer <- paste0(table_footer, "\nPredictors ", average_string, ": ", toString(adjusted_for))
+    # The "predictors averaged" line does not strictly apply to `estimate =
+    # "average"`, because we average across all predictions, we do not take an
+    # "average value" of a non-focal predictor. Thus, we skip this line in the
+    # footer
+    if (!identical(marginalization, "average")) {
+      average_string <- switch(type,
+        predictions = "controlled",
+        "averaged"
+      )
+      table_footer <- paste0(table_footer, "\nPredictors ", average_string, ": ", toString(adjusted_for))
+    }
   }
 
 
@@ -94,12 +102,28 @@
       `invlink(link)` = "response",
       predict
     )
-    table_footer <- paste0(table_footer, "\n", result_type, " are on the ", predict, "-scale.")
+    table_footer <- paste0(
+      table_footer,
+      "\n",
+      result_type,
+      " are on the ",
+      predict,
+      "-scale",
+      .contrast_units(type, predict, model_info),
+      "."
+    )
   } else if (isTRUE(model_info$is_linear) && !isTRUE(transform)) {
     # add information about response transformation
     trans_fun <- .safe(insight::find_transformation(model))
-    if (!is.null(trans_fun) && trans_fun != "identity") {
-      table_footer <- paste0(table_footer, "\n", result_type, " are on the ", trans_fun, "-scale (consider `transform=TRUE`).")
+    if (!is.null(trans_fun) && all(trans_fun != "identity")) {
+      table_footer <- paste0(
+        table_footer,
+        "\n",
+        result_type,
+        " are on the ",
+        trans_fun,
+        "-scale (consider `transform=TRUE`)."
+      )
     }
   }
 
@@ -143,6 +167,24 @@
 }
 
 
+.contrast_units <- function(type, predict, info) {
+  # estimate name
+  if (is.null(predict) || is.null(info) || type != "contrasts") {
+    return(NULL)
+  }
+
+  if (
+    (!predict %in% c("none", "link") && (info$is_binomial || info$is_bernoulli)) ||
+      predict %in% c("zprob", "zero") ||
+      (predict %in% c("response", "invlink(link)") && (info$is_beta || info$is_orderedbeta))
+  ) {
+    " (in %-points)"
+  } else {
+    NULL
+  }
+}
+
+
 # Table footer slopes =========================================================
 
 
@@ -150,7 +192,7 @@
   model_info <- info$model_info
   # make sure we definitely have model information
   if (is.null(model_info) && !is.null(model)) {
-    model_info <- insight::model_info(model)
+    model_info <- insight::model_info(model, response = 1)
   }
   transform <- info$transform
 
@@ -161,7 +203,7 @@
   if (isTRUE(model_info$is_linear) && !isTRUE(transform)) {
     # add information about response transformation
     trans_fun <- .safe(insight::find_transformation(model))
-    if (!is.null(trans_fun) && trans_fun != "identity") {
+    if (!is.null(trans_fun) && all(trans_fun != "identity")) {
       table_footer <- paste0(table_footer, "\nSlopes are on the ", trans_fun, "-scale (consider `transform=TRUE`).")
     }
   }

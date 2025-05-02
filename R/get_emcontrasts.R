@@ -22,18 +22,11 @@ get_emcontrasts <- function(model,
                             by = NULL,
                             predict = NULL,
                             comparison = "pairwise",
-                            transform = NULL,
                             keep_iterations = FALSE,
                             verbose = TRUE,
                             ...) {
   # check if available
   insight::check_if_installed("emmeans")
-
-  ## TODO: remove deprecation warning later
-  if (!is.null(transform)) {
-    insight::format_warning("Argument `transform` is deprecated. Please use `predict` instead.")
-    predict <- transform
-  }
 
   # check whether contrasts should be made for numerics or categorical
   model_data <- insight::get_data(model, source = "mf", verbose = FALSE)
@@ -48,6 +41,22 @@ get_emcontrasts <- function(model,
   # extract first focal term
   first_focal <- my_args$contrast[1]
 
+  # setup arguments
+  fun_args <- list(model)
+
+  # handle distributional parameters
+  if (predict %in% .brms_aux_elements(model) && inherits(model, "brmsfit")) {
+    dpars <- TRUE
+    fun_args$dpar <- predict
+  } else {
+    dpars <- FALSE
+    fun_args$type <- predict
+  }
+
+  # add dots
+  dots <- list(...)
+  fun_args <- insight::compact_list(c(fun_args, dots))
+
   # if first focal term is numeric, we contrast slopes
   if (is.numeric(model_data[[first_focal]]) &&
     !first_focal %in% on_the_fly_factors &&
@@ -58,23 +67,13 @@ get_emcontrasts <- function(model,
       insight::format_error("Please specify the `by` argument to calculate contrasts of slopes.") # nolint
     }
     # Run emmeans
-    estimated <- emmeans::emtrends(
-      model,
-      specs = my_args$by,
-      var = my_args$contrast,
-      type = predict,
-      ...
-    )
+    fun_args <- c(fun_args, list(specs = my_args$by, var = my_args$contrast))
+    estimated <- suppressMessages(do.call(emmeans::emtrends, fun_args))
     emm_by <- NULL
   } else {
     # Run emmeans
-    estimated <- emmeans::emmeans(
-      model,
-      specs = my_args$emmeans_specs,
-      at = my_args$emmeans_at,
-      type = predict,
-      ...
-    )
+    fun_args <- c(fun_args, list(specs = my_args$emmeans_specs, at = my_args$emmeans_at))
+    estimated <- suppressMessages(do.call(emmeans::emmeans, fun_args))
     # Find by variables
     emm_by <- my_args$emmeans_specs[!my_args$emmeans_specs %in% my_args$contrast]
     if (length(emm_by) == 0) {
@@ -83,14 +82,14 @@ get_emcontrasts <- function(model,
   }
 
   # If means are on the response scale (e.g., probabilities), need to regrid
-  if (predict == "response") {
+  if (predict == "response" || dpars) {
     estimated <- emmeans::regrid(estimated)
   }
 
   out <- emmeans::contrast(estimated, by = emm_by, method = comparison, ...)
 
   # for Bayesian model, keep iterations
-  if (insight::model_info(model)$is_bayesian) {
+  if (insight::model_info(model, response = 1)$is_bayesian) {
     attr(out, "posterior_draws") <- insight::get_parameters(estimated)
   } else {
     keep_iterations <- FALSE
@@ -150,8 +149,10 @@ get_emcontrasts <- function(model,
 
 .format_emmeans_contrasts <- function(model, estimated, ci, p_adjust, ...) {
   predict <- attributes(estimated)$predict
+  m_info <- insight::model_info(model, response = 1)
+
   # Summarize and clean
-  if (insight::model_info(model)$is_bayesian) {
+  if (m_info$is_bayesian) {
     out <- cbind(estimated@grid, bayestestR::describe_posterior(estimated, ci = ci, verbose = FALSE, ...))
     out <- .clean_names_bayesian(out, model, predict, type = "contrast")
   } else {
@@ -159,7 +160,7 @@ get_emcontrasts <- function(model,
       as.data.frame(estimated),
       stats::confint(estimated, level = ci, adjust = p_adjust)
     ))
-    out <- .clean_names_frequentist(out)
+    out <- .clean_names_frequentist(out, predict, m_info)
   }
   out$null <- NULL # introduced in emmeans 1.6.1 (#115)
   out <- datawizard::data_relocate(

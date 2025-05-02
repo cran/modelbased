@@ -37,18 +37,11 @@
 get_emmeans <- function(model,
                         by = "auto",
                         predict = NULL,
-                        transform = NULL,
                         keep_iterations = FALSE,
                         verbose = TRUE,
                         ...) {
   # check if available
   insight::check_if_installed("emmeans")
-
-  ## TODO: remove deprecation warning later
-  if (!is.null(transform)) {
-    insight::format_warning("Argument `transform` is deprecated. Please use `predict` instead.")
-    predict <- transform
-  }
 
   # Guess arguments
   my_args <- .guess_emmeans_arguments(model, by, verbose, ...)
@@ -64,9 +57,11 @@ get_emmeans <- function(model,
   )
 
   # handle distributional parameters
-  if (predict %in% .brms_aux_elements() && inherits(model, "brmsfit")) {
+  if (predict %in% .brms_aux_elements(model) && inherits(model, "brmsfit")) {
+    dpars <- TRUE
     fun_args$dpar <- predict
   } else {
+    dpars <- FALSE
     fun_args$type <- predict
   }
 
@@ -75,7 +70,12 @@ get_emmeans <- function(model,
   fun_args <- insight::compact_list(c(fun_args, dots))
 
   # Run emmeans
-  estimated <- suppressWarnings(do.call(emmeans::emmeans, fun_args))
+  estimated <- suppressMessages(suppressWarnings(do.call(emmeans::emmeans, fun_args)))
+
+  # backtransform to response scale for dpars
+  if (dpars) {
+    estimated <- emmeans::regrid(estimated)
+  }
 
   # Special behaviour for transformations #138 (see below)
   if ("retransform" %in% names(my_args) && length(my_args$retransform) > 0) {
@@ -86,7 +86,7 @@ get_emmeans <- function(model,
   }
 
   # for Bayesian model, keep iterations
-  if (insight::model_info(model)$is_bayesian) {
+  if (insight::model_info(model, response = 1)$is_bayesian) {
     attr(estimated, "posterior_draws") <- insight::get_parameters(estimated)
   } else {
     keep_iterations <- FALSE
@@ -154,8 +154,10 @@ get_emmeans <- function(model,
 
 .format_emmeans_means <- function(x, model, ci = 0.95, verbose = TRUE, ...) {
   predict <- attributes(x)$predict
+  m_info <- insight::model_info(model, response = 1)
+
   # Summarize and clean
-  if (insight::model_info(model)$is_bayesian) {
+  if (m_info$is_bayesian) {
     means <- parameters::parameters(x, ci = ci, ...)
     means <- .clean_names_bayesian(means, model, predict, type = "mean")
     em_grid <- as.data.frame(x@grid)
@@ -167,8 +169,9 @@ get_emmeans <- function(model,
   } else {
     means <- as.data.frame(stats::confint(x, level = ci))
     means$df <- NULL
-    means <- .clean_names_frequentist(means)
+    means <- .clean_names_frequentist(means, predict, m_info)
   }
+
   # Remove the "1 - overall" column that can appear in cases like at = NULL
   means <- means[names(means) != "1"]
 

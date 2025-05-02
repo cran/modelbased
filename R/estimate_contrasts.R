@@ -49,7 +49,11 @@
 #' @param iterations The number of bootstrap resamples to perform.
 #' @inheritParams estimate_means
 #'
-#' @inherit estimate_slopes details
+#' @inherit estimate_means details
+#'
+#' @inheritSection estimate_means Predictions and contrasts at meaningful values (data grids)
+#'
+#' @inheritSection estimate_means Predictions on different scales
 #'
 #' @section Effect Size:
 #'
@@ -104,7 +108,7 @@
 #' estimate_contrasts(model, contrast = c("Species", "Petal.Width"), length = 2)
 #'
 #' # Or with custom specifications
-#' estimate_contrasts(model, contrast = c("Species", "Petal.Width=c(1, 2)"))
+#' estimate_contrasts(model, contrast = c("Species", "Petal.Width = c(1, 2)"))
 #'
 #' # Or modulate it
 #' estimate_contrasts(model, by = "Petal.Width", length = 4)
@@ -133,7 +137,7 @@
 #'   data = iris,
 #'   refresh = 0
 #' )
-#' estimate_contrasts(model, by = "Petal.Length=[sd]", test = "bf")
+#' estimate_contrasts(model, by = "Petal.Length = [sd]", test = "bf")
 #' }
 #'
 #' @return A data frame of estimated contrasts.
@@ -151,18 +155,29 @@ estimate_contrasts.default <- function(model,
                                        predict = NULL,
                                        ci = 0.95,
                                        comparison = "pairwise",
-                                       estimate = getOption("modelbased_estimate", "typical"),
+                                       estimate = NULL,
                                        p_adjust = "none",
                                        transform = NULL,
                                        keep_iterations = FALSE,
                                        effectsize = NULL,
                                        iterations = 200,
                                        es_type = "cohens.d",
-                                       backend = getOption("modelbased_backend", "marginaleffects"),
+                                       backend = NULL,
                                        verbose = TRUE,
                                        ...) {
+  # Process argument ---------------------------------------------------------
+  # --------------------------------------------------------------------------
+
+  # set defaults
+  if (is.null(estimate)) {
+    estimate <- getOption("modelbased_estimate", "typical")
+  }
+  if (is.null(backend)) {
+    backend <- getOption("modelbased_backend", "marginaleffects")
+  }
+
   if (backend == "emmeans") {
-    # Emmeans ------------------------------------------------------------------
+    # Emmeans ----------------------------------------------------------------
     estimated <- get_emcontrasts(
       model,
       contrast = contrast,
@@ -176,7 +191,7 @@ estimate_contrasts.default <- function(model,
     )
     out <- .format_emmeans_contrasts(model, estimated, ci, p_adjust, ...)
   } else {
-    # Marginalmeans ------------------------------------------------------------
+    # Marginalmeans ----------------------------------------------------------
     estimated <- get_marginalcontrasts(
       model,
       contrast = contrast,

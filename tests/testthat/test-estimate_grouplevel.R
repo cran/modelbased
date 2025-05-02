@@ -1,6 +1,11 @@
 skip_if(utils::packageVersion("insight") <= "1.1.0")
 skip_if(utils::packageVersion("parameters") <= "0.24.1")
 
+test_that("estimate_grouplevel - errors", {
+  m <- lm(mpg ~ gear, data = mtcars)
+  expect_error(estimate_grouplevel(m), regex = "Model must be a mixed")
+})
+
 test_that("estimate_grouplevel - lme4", {
   skip_if_not_installed("lme4")
   set.seed(333)
@@ -10,19 +15,20 @@ test_that("estimate_grouplevel - lme4", {
   model <- lme4::lmer(Reaction ~ Days + (1 | Subject), data = data)
   random <- estimate_grouplevel(model)
   expect_equal(nrow(random), length(unique(data$Subject)))
-  expect_equal(nrow(reshape_grouplevel(random)), nrow(data))
+  expect_equal(nrow(reshape_grouplevel(random)), length(unique(data$Subject)))
 
   # 2 random intercepts
   model <- lme4::lmer(mpg ~ wt + (1 | gear) + (1 | carb), data = mtcars)
   random <- estimate_grouplevel(model)
   expect_equal(nrow(random), length(c(unique(mtcars$gear), unique(mtcars$carb))))
-  expect_equal(nrow(reshape_grouplevel(random)), nrow(mtcars))
+  expect_equal(nrow(reshape_grouplevel(random, group = "gear")), length(unique(mtcars$gear)))
+  expect_equal(nrow(reshape_grouplevel(random, group = "carb")), length(unique(mtcars$carb)))
 
   # Random slope and intercept
   model <- lme4::lmer(Reaction ~ Days + (1 + Days | Subject), data = data)
   random <- estimate_grouplevel(model)
   expect_equal(nrow(random), 2 * length(unique(data$Subject)))
-  expect_equal(nrow(reshape_grouplevel(random)), nrow(data))
+  expect_equal(nrow(reshape_grouplevel(random)), length(unique(data$Subject)))
 
   # Nested random factors
   set.seed(33)
@@ -36,8 +42,8 @@ test_that("estimate_grouplevel - lme4", {
   random <- estimate_grouplevel(model)
   expect_equal(nrow(random), sum(sapply(coef(model), nrow)))
 
-  reshaped <- reshape_grouplevel(random)
-  expect_equal(nrow(reshaped), nrow(data))
+  reshaped <- reshape_grouplevel(random, group = "grp")
+  expect_equal(nrow(reshaped), length(unique(data$grp)))
   ref <- insight::get_data(model, verbose = FALSE)[insight::find_random(model, split_nested = TRUE, flatten = TRUE)]
   all(reshaped$Subject == ref$Subject)
   all(reshaped$grp == ref$grp)
@@ -83,7 +89,7 @@ test_that("estimate_grouplevel - glmmTMB", {
   expect_named(out, c("Group", "Level", "Parameter", "Coefficient"))
 })
 
-test_that("estimate_grouplevel - Bayesian", {
+test_that("estimate_grouplevel - Bayesian, brms", {
   skip_on_cran()
   skip_if_not_installed("curl")
   skip_if_offline()
@@ -94,10 +100,10 @@ test_that("estimate_grouplevel - Bayesian", {
   skip_if(is.null(m))
 
   out <- estimate_grouplevel(m)
-  expect_identical(dim(out), c(6L, 7L))
-  expect_named(out, c("Group", "Level", "Parameter", "Median", "CI", "CI_low", "CI_high"))
+  expect_identical(dim(out), c(6L, 8L))
+  expect_named(out, c("Group", "Level", "Parameter", "Median", "MAD", "CI", "CI_low", "CI_high"))
 
-  out <- estimate_grouplevel(m, type = "total")
+  out <- estimate_grouplevel(m, type = "total", dispersion = FALSE)
   expect_identical(dim(out), c(6L, 7L))
   expect_named(out, c("Group", "Level", "Parameter", "Median", "CI", "CI_low", "CI_high"))
 
@@ -105,10 +111,32 @@ test_that("estimate_grouplevel - Bayesian", {
   skip_if(is.null(m))
 
   out <- estimate_grouplevel(m)
-  expect_identical(dim(out), c(12L, 8L))
-  expect_named(out, c("Component", "Group", "Level", "Parameter", "Median", "CI", "CI_low", "CI_high"))
+  expect_identical(dim(out), c(12L, 9L))
+  expect_named(out, c("Component", "Group", "Level", "Parameter", "Median", "MAD", "CI", "CI_low", "CI_high"))
 
   out <- estimate_grouplevel(m, type = "total")
-  expect_identical(dim(out), c(12L, 8L))
-  expect_named(out, c("Component", "Group", "Level", "Parameter", "Median", "CI", "CI_low", "CI_high"))
+  expect_identical(dim(out), c(12L, 9L))
+  expect_named(out, c("Component", "Group", "Level", "Parameter", "Median", "MAD", "CI", "CI_low", "CI_high"))
+})
+
+test_that("estimate_grouplevel - Bayesian, rstanarm", {
+  skip_on_cran()
+  skip_if_not_installed("curl")
+  skip_if_offline()
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("rstanarm")
+
+  m <- insight::download_model("stanreg_merMod_1")
+  skip_if(is.null(m))
+
+  out <- estimate_grouplevel(m)
+  expect_identical(dim(out), c(3L, 8L))
+  expect_named(out, c("Group", "Level", "Parameter", "Median", "MAD", "CI", "CI_low", "CI_high"))
+
+  out <- estimate_grouplevel(m, dispersion = FALSE)
+  expect_identical(dim(out), c(3L, 7L))
+
+  out <- estimate_grouplevel(m, type = "total", dispersion = FALSE)
+  expect_identical(dim(out), c(3L, 4L))
+  expect_named(out, c("Group", "Level", "Parameter", "Coefficient"))
 })
