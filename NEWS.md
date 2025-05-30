@@ -1,3 +1,32 @@
+# modelbased 0.11.2
+
+## Changes
+
+* `estimate_contrasts()` for results from `estimate_relation()` and alike is
+  now more efficient for larger number of contrasts.
+
+* Updated information of `citation()`. If you want to cite the `modelbased`
+  package, please use the JOSS publication as reference
+  (https://joss.theoj.org/papers/10.21105/joss.07969).
+
+## Bug fixes
+
+* Fixed issue with formatted labels in `estimate_contrasts()` for results from
+  `estimate_relation()`.
+
+# modelbased 0.11.1
+
+## Changes
+
+* The `comparison` argument can now also be a custom function, or a matrix
+  (e.g., to define contrasts).
+
+* The `comparison` argument can now also be `"joint"`, to jointly test
+  hypotheses (i.e. conducting a joint test) in factorial designs.
+
+* New vignette about user-defined contrasts and joint tests in
+  `estimate_contrasts()`.
+
 # modelbased 0.11.0
 
 ## New functions

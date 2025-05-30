@@ -6,6 +6,11 @@ format.estimate_contrasts <- function(x,
                                       select = getOption("modelbased_select", NULL),
                                       include_grid = getOption("modelbased_include_grid", FALSE),
                                       ...) {
+  # for joint test, no select and include_grid options
+  if (isTRUE(attributes(x)$joint_test)) {
+    select <- NULL
+    include_grid <- FALSE
+  }
   # don't print columns of adjusted_for variables
   adjusted_for <- attr(x, "adjusted_for", exact = TRUE)
   if (!is.null(adjusted_for) && all(adjusted_for %in% colnames(x)) && !isTRUE(include_grid)) {
@@ -63,6 +68,12 @@ format.estimate_contrasts <- function(x,
 
   # remove all-NA columns
   x <- datawizard::remove_empty_columns(x)
+
+  # remove df column if it's only "Inf" (new since version ‘0.25.1.8’)
+  all_inf_values <- vapply(x, function(i) all(is.infinite(i)), logical(1))
+  if (any(all_inf_values)) {
+    x[all_inf_values] <- NULL
+  }
 
   # add back adjusted_for variables when we have custom column layouts
   if (!is.null(select)) {
@@ -542,7 +553,13 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
   }
   # marginaleffects objects return z-statistic by default, unless we change it
   # via the degrees-of-freedom argument
-  if (is.null(params$df) || all(is.infinite(params$df))) {
+  if (inherits(x, "marginal_jointtest")) {
+    if (all(c("df1", "df2") %in% colnames(params))) {
+      stat_column <- "F"
+    } else {
+      stat_column <- "Chi2"
+    }
+  } else if (is.null(params$df) || all(is.infinite(params$df))) {
     stat_column <- "z"
   } else {
     stat_column <- "t"
@@ -551,6 +568,12 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
 
   # remove redundant columns
   params <- datawizard::data_remove(params, remove_columns, verbose = FALSE) # nolint
+
+  # remove df column if it's only "Inf" (new since version ‘0.25.1.8’)
+  all_inf_values <- vapply(params, function(i) all(is.infinite(i)), logical(1))
+  if (any(all_inf_values)) {
+    params[all_inf_values] <- NULL
+  }
 
   # Rename for Categorical family
   if (info$is_categorical || info$is_ordinal || info$is_cumulative || insight::is_multivariate(model)) {
@@ -637,6 +660,8 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
     # for Bayesian models with distributional parameter
     estimate_name <- tools::toTitleCase(predict_type)
   } else if (!predict_type %in% c("none", "link") && (info$is_binomial || info$is_bernoulli)) {
+    estimate_name <- "Probability"
+  } else if (predict_type == "survival" && info$is_survival) {
     estimate_name <- "Probability"
   } else if (predict_type %in% c("zprob", "zero")) {
     estimate_name <- "Probability"
