@@ -26,6 +26,9 @@ GAMM
 GLMM
 GLMMs
 GLM's
+GMM
+GMMs
+Greifer
 Heiss
 Hernan
 Hernán
@@ -35,6 +38,7 @@ IPW
 Intersectional
 Intersectionality
 Leckie
+Lenth
 LM
 MAIHDA
 Mattan
@@ -42,16 +46,20 @@ McCabe
 McClelland
 McKoon
 Merlo
+Mize
 Mmmh
 Modelisation
 Modelling
+Møller
+Montiel
 Mulinari
 Neyman
-Nonresponse
+Olea
 ORCID
 Owww
 PCVs
 PCV
+Plagborg
 QoL
 Psychometrika
 RCTs
@@ -68,6 +76,7 @@ Spiller
 SSM
 Subramanian
 SV
+SVARs
 Versicolor
 Virginica
 Visualisation
@@ -83,6 +92,7 @@ blogpost
 bocode
 bonferroni
 bootES
+brglm
 brms
 caregiving
 ception
@@ -92,6 +102,8 @@ conditionspeed
 counterfactuals
 confounder
 confounders
+d'être
+d’être
 dat
 datagrid
 datawizard
@@ -141,6 +153,7 @@ modelled
 modelling
 natively
 nd
+nnet
 ol
 patilindrajeets
 pscl
@@ -148,6 +161,7 @@ pre
 quartiles
 rOpenSci
 Remotes
+raison
 recoding
 recodings
 repec

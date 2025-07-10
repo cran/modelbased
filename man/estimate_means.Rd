@@ -165,7 +165,7 @@ A data frame of estimated marginal means.
 }
 \description{
 Estimate average values of the response variable at each factor level or
-at representative value, respectively at values defined in a "data grid" or
+at representative values, respectively at values defined in a "data grid" or
 "reference grid". For plotting, check the examples in
 \code{\link[=visualisation_recipe]{visualisation_recipe()}}. See also other related functions such as
 \code{\link[=estimate_contrasts]{estimate_contrasts()}} and \code{\link[=estimate_slopes]{estimate_slopes()}}.
@@ -220,7 +220,7 @@ the condition's levels (using \code{\link[=estimate_means]{estimate_means()}}), 
 visualize them. Another possibility is to evaluate the difference between
 these levels (using \code{\link[=estimate_contrasts]{estimate_contrasts()}}). Finally, one could also estimate
 the effect of x averaged over all conditions, or instead within each
-condition (\code{using [estimate_slopes]}).
+condition (using \code{\link[=estimate_slopes]{estimate_slopes()}}).
 }
 \section{Predictions and contrasts at meaningful values (data grids)}{
 
@@ -290,6 +290,15 @@ but might produce biased predictions. However, you can try to set
 
 In particular for mixed models, using \code{"response"} is recommended, because
 averaging across random effects groups is then more accurate.
+}
+
+\section{Finite mixture models}{
+
+
+For finite mixture models (currently, only the \code{\link[brms:mixture]{brms::mixture()}} family
+from package \emph{brms} is supported), use \code{predict = "link"} to return predicted
+values stratified by class membership. To predict the class membership, use
+\code{\link[=estimate_link]{estimate_link()}}.
 }
 
 \section{Global Options to Customize Estimation of Marginal Means}{

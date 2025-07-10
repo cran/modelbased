@@ -117,14 +117,23 @@ See also \code{method} argument in \link[emmeans:contrast]{emmeans::contrast} an
 \item For \code{backend = "marginaleffects"}, can be a numeric value, vector, or
 matrix, a string equation specifying the hypothesis to test, a string
 naming the comparison method, a formula, or a function. For options not
-described below, see documentation of \link[marginaleffects:comparisons]{marginaleffects::comparisons} and
-\href{https://marginaleffects.com/bonus/hypothesis.html}{this website}.
+described below, see documentation of \link[marginaleffects:comparisons]{marginaleffects::comparisons},
+\href{https://marginaleffects.com/bonus/hypothesis.html}{this website} and
+section \emph{Comparison options} below.
 \itemize{
 \item String: One of \code{"pairwise"}, \code{"reference"}, \code{"sequential"}, \code{"meandev"}
 \code{"meanotherdev"}, \code{"poly"}, \code{"helmert"}, or \code{"trt_vs_ctrl"}. To test
 multiple hypotheses jointly (usually used for factorial designs),
 \code{comparison} can also be \code{"joint"}. In this case, use the \code{test} argument
 to specify which test should be conducted: \code{"F"} (default) or \code{"Chi2"}.
+\item String: Two special string options are \code{"inequality"} and
+\code{"inequality_pairwise"}. \code{comparison = "inequality"} computes the
+marginal effect inequality summary of categorical predictors' overall
+effects, respectively, the comprehensive effect of an independent
+variable across all outcome categories of a nominal or ordinal dependent
+variable (total marginal effect, see \emph{Mize and Han, 2025}).
+\code{comparison = "inequality_pairwise"} computes the difference (pairwise
+comparisons) between marginal effects inequality measures.
 \item String equation: To identify parameters from the output, either specify
 the term name, or \code{"b1"}, \code{"b2"} etc. to indicate rows, e.g.:\code{"hp = drat"},
 \code{"b1 = b2"}, or \code{"b1 + b2 + b3 = 0"}.
@@ -177,12 +186,15 @@ e.g. \code{options(modelbased_estimate = "average")}}
 
 \item{p_adjust}{The p-values adjustment method for frequentist multiple
 comparisons. Can be one of \code{"none"} (default), \code{"hochberg"}, \code{"hommel"},
-\code{"bonferroni"}, \code{"BH"}, \code{"BY"}, \code{"fdr"}, \code{"tukey"}, \code{"sidak"}, \code{"esarey"} or
-\code{"holm"}. The \code{"esarey"} option is specifically for the case of Johnson-Neyman
-intervals, i.e. when calling \code{estimate_slopes()} with two numeric predictors
-in an interaction term. Details for the other options can be found in the
+\code{"bonferroni"}, \code{"BH"}, \code{"BY"}, \code{"fdr"}, \code{"tukey"}, \code{"sidak"}, \code{"sup-t"},
+\code{"esarey"} or \code{"holm"}. The \code{"esarey"} option is specifically for the case of
+Johnson-Neyman intervals, i.e. when calling \code{estimate_slopes()} with two
+numeric predictors in an interaction term. \code{"sup-t"} computes simultaneous
+confidence bands, also called sup-t confidence band (Montiel Olea &
+Plagborg-Møller, 2019). Details for the other options can be found in the
 p-value adjustment section of the \code{emmeans::test} documentation or
-\code{?stats::p.adjust}.}
+\code{?stats::p.adjust}. Note that certain options provided by the \strong{emmeans}
+package are only available if you set \code{backend = "emmeans"}.}
 
 \item{transform}{A function applied to predictions and confidence intervals
 to (back-) transform results, which can be useful in case the regression
@@ -286,8 +298,57 @@ the condition's levels (using \code{\link[=estimate_means]{estimate_means()}}), 
 visualize them. Another possibility is to evaluate the difference between
 these levels (using \code{\link[=estimate_contrasts]{estimate_contrasts()}}). Finally, one could also estimate
 the effect of x averaged over all conditions, or instead within each
-condition (\code{using [estimate_slopes]}).
+condition (using \code{\link[=estimate_slopes]{estimate_slopes()}}).
 }
+\section{Comparison options}{
+
+\itemize{
+\item \code{comparison = "pairwise"}: This method computes all possible unique
+differences between pairs of levels of the focal predictor. For example, if
+a factor has levels A, B, and C, it would compute A-B, A-C, and B-C.
+\item \code{comparison = "reference"}: This compares each level of the focal predictor
+to a specified reference level (by default, the first level). For example,
+if levels are A, B, C, and A is the reference, it computes B-A and C-A.
+\item \code{comparison = "sequential"}: This compares each level to the one
+immediately following it in the factor's order. For levels A, B, C, it
+would compute B-A and C-B.
+\item \code{comparison = "meandev"}: This contrasts each level's estimate against the
+grand mean of all estimates for the focal predictor.
+\item \code{comparison = "meanotherdev"}: Similar to \code{meandev}, but each level's
+estimate is compared against the mean of all \emph{other} levels, excluding
+itself.
+\item \code{comparison = "poly"}: These are used for ordered categorical variables to
+test for linear, quadratic, cubic, etc., trends across the levels. They
+assume equal spacing between levels.
+\item \code{comparison = "helmert"}: Contrast 2nd level to the first, 3rd to the
+average of the first two, and so on. Each level (except the first) is
+compared to the mean of the preceding levels. For levels A, B, C, it would
+compute B-A and C-(A+B)/2.
+\item \code{comparison = "trt_vs_ctrl"}: This compares all levels (excluding the
+first, which is typically the control) against the first level. It's often
+used when comparing multiple treatment groups to a single control group.
+\item To test multiple hypotheses jointly (usually used for factorial designs),
+\code{comparison} can also be \code{"joint"}. In this case, use the \code{test} argument
+to specify which test should be conducted: \code{"F"} (default) or \code{"Chi2"}.
+\item \code{comparison = "inequality"} computes the marginal effect inequality summary
+of categorical predictors' overall effects, respectively, the comprehensive
+effect of an independent variable across all outcome categories of a
+nominal or ordinal dependent variable (total marginal effect, see \emph{Mize and
+Han, 2025}). The marginal effect inequality focuses on the heterogeneity of
+the effects of a categorical \emph{independent} variable. It helps understand
+how the effect of the variable differs across its categories or levels.
+When the \emph{dependent} variable is categorical (e.g., logistic, ordinal or
+multinomial regression), marginal effect inequality provides a holistic
+view of how an independent variable affects a nominal or ordinal
+\emph{dependent} variable. It summarizes the overall impact (total marginal
+effects) across all possible outcome categories.
+\item \code{comparison = "inequality_pairwise"} computes the difference (pairwise
+comparisons) between marginal effects inequality measures. Depending on the
+sign, this measure indicates which of the predictors has a stronger impact
+on the dependent variable in terms of inequalities.
+}
+}
+
 \section{Effect Size}{
 
 
@@ -453,4 +514,14 @@ model <- rstanarm::stan_glm(
 estimate_contrasts(model, by = "Petal.Length = [sd]", test = "bf")
 }
 \dontshow{\}) # examplesIf}
+}
+\references{
+\itemize{
+\item Mize, T., & Han, B. (2025). Inequality and Total Effect Summary Measures for
+Nominal and Ordinal Variables. Sociological Science, 12, 115–157.
+\doi{10.15195/v12.a7}
+\item Montiel Olea, J. L., and Plagborg-Møller, M. (2019). Simultaneous
+confidence bands: Theory, implementation, and an application to SVARs.
+Journal of Applied Econometrics, 34(1), 1–17. \doi{10.1002/jae.2656}
+}
 }
