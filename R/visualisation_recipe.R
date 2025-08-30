@@ -2,8 +2,10 @@
 #' @name visualisation_recipe.estimate_predicted
 #'
 #' @description
-#' Most **modelbased** objects can be visualized using the `plot()` function,
-#' which internally calls the `visualisation_recipe()` function. See the
+#' Most **modelbased** objects can be visualized using either the `plot()`
+#' function, which internally calls the `visualisation_recipe()` function and
+#' relies on `{ggplot2}`. There is also a `tinyplot()` method, which uses the
+#' `{tinyplot}` package and relies on the core R graphic system. See the
 #' examples below for more information and examples on how to create and
 #' customize plots.
 #'
@@ -37,9 +39,13 @@
 #' predictor. Use `FALSE` to always use continuous color scales for numeric
 #' predictors. It is possible to set a global default value using `options()`,
 #' e.g. `options(modelbased_numeric_as_discrete = 10)`.
+#' @param show_residuals Logical, if `TRUE`, display residuals of the model
+#' as a background to the model-based estimation. Residuals will be computed
+#' for the predictors in the data grid, using [`residualize_over_grid()`].
 #' @param point,line,pointrange,ribbon,facet,grid Additional
 #' aesthetics and parameters for the geoms (see customization example).
-#' @param ... Arguments passed from `plot()` to `visualisation_recipe()`.
+#' @param ... Arguments passed from `plot()` to `visualisation_recipe()`, or
+#' to `tinyplot()` and `tinytheme()` if you use that method.
 #'
 #' @details There are two options to remove the confidence bands or errors bars
 #' from the plot. To remove error bars, simply set the `pointrange` geom to
@@ -59,6 +65,10 @@
 #' - `modelbased_numeric_as_discrete`: `options(modelbased_numeric_as_discrete = <number>)`
 #'   will set a default value for the `modelbased_numeric_as_discrete` argument.
 #'   Can also be `FALSE`.
+#'
+#' - `modelbased_ribbon_alpha`: `options(modelbased_ribbon_alpha = <number>)`
+#'   will set a default value for the `alpha` argument of the `ribbon` geom.
+#'   Should be a number between `0` and `1`.
 #'
 #' @examplesIf all(insight::check_if_installed(c("marginaleffects", "see", "ggplot2"), quietly = TRUE)) && getRversion() >= "4.1.0"
 #' library(ggplot2)
@@ -147,6 +157,7 @@
 #' @export
 visualisation_recipe.estimate_predicted <- function(x,
                                                     show_data = FALSE,
+                                                    show_residuals = FALSE,
                                                     point = NULL,
                                                     line = NULL,
                                                     pointrange = NULL,
@@ -170,6 +181,7 @@ visualisation_recipe.estimate_predicted <- function(x,
   .visualization_recipe(
     x,
     show_data = show_data,
+    show_residuals = show_residuals,
     point = point,
     line = line,
     pointrange = pointrange,
@@ -227,6 +239,7 @@ visualisation_recipe.estimate_slopes <- function(x,
   .visualization_recipe(
     x,
     show_data = FALSE,
+    show_residuals = FALSE,
     line = line,
     pointrange = pointrange,
     ribbon = ribbon,
@@ -284,6 +297,7 @@ visualisation_recipe.estimate_grouplevel <- function(x,
   .visualization_recipe(
     x,
     show_data = FALSE,
+    show_residuals = FALSE,
     line = line,
     pointrange = pointrange,
     ribbon = ribbon,

@@ -82,6 +82,7 @@ Virginica
 Visualisation
 Visualising
 Wagenmakers
+Weisberg
 Wemrell
 Wiernik
 al
@@ -102,6 +103,7 @@ conditionspeed
 counterfactuals
 confounder
 confounders
+coxme
 d'être
 d’être
 dat
@@ -125,6 +127,7 @@ geoms
 ggplot
 github
 glmmTMB
+glms
 grano
 grey
 hochberg
@@ -155,6 +158,8 @@ natively
 nd
 nnet
 ol
+onwards
+partialled
 patilindrajeets
 pscl
 pre
@@ -168,6 +173,8 @@ repec
 reproducibility
 rescaled
 rescales
+residualize
+residualized
 rootSolve
 rstanarm
 salis
@@ -190,3 +197,6 @@ visualisation
 visualise
 visualising
 walkthrough
+Nonresponse
+tinyplot
+’

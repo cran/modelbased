@@ -108,10 +108,7 @@ get_emmeans <- function(model,
 # =========================================================================
 
 #' @keywords internal
-.guess_emmeans_arguments <- function(model,
-                                     by = NULL,
-                                     verbose = TRUE,
-                                     ...) {
+.guess_emmeans_arguments <- function(model, by = NULL, verbose = TRUE, ...) {
   # Gather info
   model_data <- insight::get_data(model, verbose = FALSE)
   predictors <- intersect(
@@ -123,10 +120,23 @@ get_emmeans <- function(model,
   if (!is.null(by) && length(by) == 1 && by == "auto") {
     by <- predictors[!sapply(model_data[predictors], is.numeric)]
     if (!length(by) || all(is.na(by))) {
-      insight::format_error("Model contains no categorical factor. Please specify `by`.")
+      # in-formula transformations, like `as.factor(x)`, need special handling
+      # because these predictors are no factors in the data. we get flags for
+      # such transformations when we request data from the model frame
+      model_frame <- insight::get_data(model, source = "mf", verbose = FALSE)
+      factors <- attributes(model_frame)$factors
+      # if still no factors found, throw error
+      if (is.null(factors)) {
+        insight::format_error("Model contains no categorical factor. Please specify `by`.")
+      }
+      by <- factors
     }
     if (verbose) {
-      insight::format_alert(paste0("We selected `by = c(", toString(paste0('"', by, '"')), ")`."))
+      insight::format_alert(paste0(
+        "We selected `by = c(",
+        toString(paste0('"', by, '"')),
+        ")`."
+      ))
     }
   }
 
@@ -138,11 +148,7 @@ get_emmeans <- function(model,
 ## TODO: validate predict argument to make sure it only has valid options
 .get_emmeans_type_argument <- function(model, predict, type = "means", ...) {
   if (is.null(predict)) {
-    predict <- switch(type,
-      means = "response",
-      contrasts = "response",
-      "none"
-    )
+    predict <- switch(type, means = "response", contrasts = "response", "none")
   } else if (predict == "link") {
     predict <- "none"
   }

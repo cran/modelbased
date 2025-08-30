@@ -53,13 +53,13 @@ Additional arguments can be passed to these functions.
 \code{describe_posterior()}, thus, arguments like, for example, \code{centrality},
 \code{rope_range}, or \code{test} are passed to that function.
 \item Especially for \code{estimate_contrasts()} with integer focal predictors, for
-which contrasts should be calculated, use argument \code{integer_as_numeric} to
-set the maximum number of unique values in an integer predictor to treat
+which contrasts should be calculated, use argument \code{integer_as_continuous}
+to set the maximum number of unique values in an integer predictor to treat
 that predictor as "discrete integer" or as numeric. For the first case,
 contrasts are calculated between values of the predictor, for the latter,
 contrasts of slopes are calculated. If the integer has more than
-\code{integer_as_numeric} unique values, it is treated as numeric. Defaults to
-\code{5}.
+\code{integer_as_continuous} unique values, it is treated as numeric. Defaults
+to \code{5}. Set to \code{TRUE} to always treat integer predictors as continuous.
 \item For count regression models that use an offset term, use \verb{offset = <value>}
 to fix the offset at a specific value. Or use \code{estimate = "average"}, to
 average predictions over the distribution of the offset (if appropriate).
@@ -126,14 +126,22 @@ section \emph{Comparison options} below.
 multiple hypotheses jointly (usually used for factorial designs),
 \code{comparison} can also be \code{"joint"}. In this case, use the \code{test} argument
 to specify which test should be conducted: \code{"F"} (default) or \code{"Chi2"}.
-\item String: Two special string options are \code{"inequality"} and
-\code{"inequality_pairwise"}. \code{comparison = "inequality"} computes the
+\item String: Special string options are \code{"inequality"}, \code{"inequality_ratio"},
+and \code{"inequality_pairwise"}. \code{comparison = "inequality"} computes the
 marginal effect inequality summary of categorical predictors' overall
 effects, respectively, the comprehensive effect of an independent
 variable across all outcome categories of a nominal or ordinal dependent
-variable (total marginal effect, see \emph{Mize and Han, 2025}).
-\code{comparison = "inequality_pairwise"} computes the difference (pairwise
-comparisons) between marginal effects inequality measures.
+variable (also called \emph{absolute inequality}, or total marginal effect,
+see \emph{Mize and Han, 2025}). \code{"inequality_ratio"} computes the ratio of
+marginal effect inequality measures, also known as \emph{relative inequality}.
+This is useful to compare the relative effects of different predictors on
+the dependent variable. It provides a measure of how much more or less
+inequality one predictor has compared to another.
+\code{comparison = "inequality_pairwise"} computes pairwise differences of
+absolute inequality measures, while \code{"inequality_ratio_pairwise"}
+computes pairwise differences of relative inequality measures (ratios).
+See an overview of applications in the related case study in the
+\href{https://easystats.github.io/modelbased/articles/practical_inequalities.html}{vignettes}.
 \item String equation: To identify parameters from the output, either specify
 the term name, or \code{"b1"}, \code{"b2"} etc. to indicate rows, e.g.:\code{"hp = drat"},
 \code{"b1 = b2"}, or \code{"b1 + b2 + b3 = 0"}.
@@ -178,11 +186,27 @@ the predicted response for the 'average' observation in a broader possible
 target population?" This approach entails more assumptions about the
 likelihood of different combinations, but can be more apt to generalize.
 This is also the option that should be used for \strong{G-computation}
-(\emph{Chatton and Rohrer 2024}).
+(causal inference, see \emph{Chatton and Rohrer 2024}). \code{"counterfactual"} is
+an alias for \code{"population"}.
 }
 
 You can set a default option for the \code{estimate} argument via \code{options()},
-e.g. \code{options(modelbased_estimate = "average")}}
+e.g. \code{options(modelbased_estimate = "average")}.
+
+Note following limitations:
+\itemize{
+\item When you set \code{estimate} to \code{"average"}, it calculates the average based
+only on the data points that actually exist. This is in particular
+important for two or more focal predictors, because it doesn't generate a
+\emph{complete} grid of all theoretical combinations of predictor values.
+Consequently, the output may not include all the values.
+\item Filtering the output at values of continuous predictors, e.g.
+\code{by = "x=1:5"}, in combination with \code{estimate = "average"} may result in
+returning an empty data frame because of what was described above. In such
+case, you can use \code{estimate = "typical"} or use the \code{newdata} argument to
+provide a data grid of predictor values at which to evaluate predictions.
+\item \code{estimate = "population"} is not available for \code{estimate_slopes()}.
+}}
 
 \item{p_adjust}{The p-values adjustment method for frequentist multiple
 comparisons. Can be one of \code{"none"} (default), \code{"hochberg"}, \code{"hommel"},
@@ -257,36 +281,39 @@ argument), so reading its documentation (for instance \code{\link[emmeans:emmean
 \code{\link[emmeans:emtrends]{emmeans::emtrends()}} or this \href{https://marginaleffects.com/}{website}) is
 recommended to understand the idea behind these types of procedures.
 \itemize{
-\item Model-based \strong{predictions} is the basis for all that follows. Indeed,
-the first thing to understand is how models can be used to make predictions
-(see \code{\link[=estimate_link]{estimate_link()}}). This corresponds to the predicted response (or
-"outcome variable") given specific predictor values of the predictors (i.e.,
-given a specific data configuration). This is why the concept of \code{\link[insight:get_datagrid]{reference grid()}} is so important for direct predictions.
-\item \strong{Marginal "means"}, obtained via \code{\link[=estimate_means]{estimate_means()}}, are an extension
-of such predictions, allowing to "average" (collapse) some of the predictors,
-to obtain the average response value at a specific predictors configuration.
-This is typically used when some of the predictors of interest are factors.
-Indeed, the parameters of the model will usually give you the intercept value
-and then the "effect" of each factor level (how different it is from the
-intercept). Marginal means can be used to directly give you the mean value of
-the response variable at all the levels of a factor. Moreover, it can also be
-used to control, or average over predictors, which is useful in the case of
-multiple predictors with or without interactions.
-\item \strong{Marginal contrasts}, obtained via \code{\link[=estimate_contrasts]{estimate_contrasts()}}, are
-themselves at extension of marginal means, in that they allow to investigate
-the difference (i.e., the contrast) between the marginal means. This is,
-again, often used to get all pairwise differences between all levels of a
-factor. It works also for continuous predictors, for instance one could also
-be interested in whether the difference at two extremes of a continuous
+\item Model-based \strong{predictions} is the basis for all that follows. Indeed, the
+first thing to understand is how models can be used to make predictions
+(see \code{\link[=estimate_relation]{estimate_relation()}}). This corresponds to the predicted response (or
+"outcome variable") given specific predictor values of the predictors
+(i.e., given a specific data configuration). This is why the concept of
+the \link[insight:get_datagrid]{reference grid} is so important for direct
+predictions.
+\item \strong{Marginal "means"}, obtained via \code{\link[=estimate_means]{estimate_means()}}, are an extension of
+such predictions, allowing to "average" (collapse) some of the predictors,
+to obtain the average response value at a specific predictors
+configuration. This is typically used when some of the predictors of
+interest are factors. Indeed, the parameters of the model will usually give
+you the intercept value and then the "effect" of each factor level (how
+different it is from the intercept). Marginal means can be used to directly
+give you the mean value of the response variable at all the levels of a
+factor. Moreover, it can also be used to control, or average over
+predictors, which is useful in the case of multiple predictors with or
+without interactions.
+\item \strong{Marginal contrasts}, obtained via \code{\link[=estimate_contrasts]{estimate_contrasts()}}, are themselves
+at extension of marginal means, in that they allow to investigate the
+difference (i.e., the contrast) between the marginal means. This is, again,
+often used to get all pairwise differences between all levels of a factor.
+It works also for continuous predictors, for instance one could also be
+interested in whether the difference at two extremes of a continuous
 predictor is significant.
 \item Finally, \strong{marginal effects}, obtained via \code{\link[=estimate_slopes]{estimate_slopes()}}, are
-different in that their focus is not values on the response variable, but the
-model's parameters. The idea is to assess the effect of a predictor at a
-specific configuration of the other predictors. This is relevant in the case
-of interactions or non-linear relationships, when the effect of a predictor
-variable changes depending on the other predictors. Moreover, these effects
-can also be "averaged" over other predictors, to get for instance the
-"general trend" of a predictor over different factor levels.
+different in that their focus is not values on the response variable, but
+the model's parameters. The idea is to assess the effect of a predictor at
+a specific configuration of the other predictors. This is relevant in the
+case of interactions or non-linear relationships, when the effect of a
+predictor variable changes depending on the other predictors. Moreover,
+these effects can also be "averaged" over other predictors, to get for
+instance the "general trend" of a predictor over different factor levels.
 }
 
 \strong{Example:} Let's imagine the following model \code{lm(y ~ condition * x)} where
@@ -330,23 +357,35 @@ used when comparing multiple treatment groups to a single control group.
 \item To test multiple hypotheses jointly (usually used for factorial designs),
 \code{comparison} can also be \code{"joint"}. In this case, use the \code{test} argument
 to specify which test should be conducted: \code{"F"} (default) or \code{"Chi2"}.
-\item \code{comparison = "inequality"} computes the marginal effect inequality summary
-of categorical predictors' overall effects, respectively, the comprehensive
-effect of an independent variable across all outcome categories of a
-nominal or ordinal dependent variable (total marginal effect, see \emph{Mize and
-Han, 2025}). The marginal effect inequality focuses on the heterogeneity of
-the effects of a categorical \emph{independent} variable. It helps understand
-how the effect of the variable differs across its categories or levels.
-When the \emph{dependent} variable is categorical (e.g., logistic, ordinal or
-multinomial regression), marginal effect inequality provides a holistic
-view of how an independent variable affects a nominal or ordinal
-\emph{dependent} variable. It summarizes the overall impact (total marginal
+\item \code{comparison = "inequality"} computes the \emph{absolute inequality} of groups,
+or in other words, the marginal effect inequality summary of categorical
+predictors' overall effects, respectively, the comprehensive effect of an
+independent variable across all outcome categories of a nominal or ordinal
+dependent variable (total marginal effect, see \emph{Mize and Han, 2025}). The
+marginal effect inequality focuses on the heterogeneity of the effects of a
+categorical \emph{independent} variable. It helps understand how the effect of
+the variable differs across its categories or levels. When the \emph{dependent}
+variable is categorical (e.g., logistic, ordinal or multinomial
+regression), marginal effect inequality provides a holistic view of how an
+independent variable affects a nominal or ordinal \emph{dependent} variable. It
+summarizes the overall impact (absolute inequality, or total marginal
 effects) across all possible outcome categories.
-\item \code{comparison = "inequality_pairwise"} computes the difference (pairwise
-comparisons) between marginal effects inequality measures. Depending on the
-sign, this measure indicates which of the predictors has a stronger impact
-on the dependent variable in terms of inequalities.
+\item \code{comparison = "inequality_ratio"} is comparable to
+\code{comparison = "inequality"}, but instead of calculating the absolute
+inequality, it computes the \emph{relative inequality} of groups. This is useful
+to compare the relative effects of different predictors on the dependent
+variable. It provides a measure of how much more or less inequality one
+predictor has
+compared to another.
+\item \code{comparison = "inequality_pairwise"} computes pairwise differences of
+absolute inequality measures, while \code{"inequality_ratio_pairwise"} computes
+pairwise differences of relative inequality measures (ratios). Depending on
+the sign, this measure indicates which of the predictors has a stronger
+impact on the dependent variable in terms of inequalities.
 }
+
+Examples for analysing inequalities are shown in the related
+\href{https://easystats.github.io/modelbased/articles/practical_inequalities.html}{vignette}.
 }
 
 \section{Effect Size}{
@@ -403,14 +442,16 @@ or \code{by = list(Species = c('setosa', 'virginica'))}
 }
 \item You can use "shortcuts" within square brackets, such as \code{by = "Sepal.Width = [sd]"}
 or \code{by = "Sepal.Width = [fivenum]"}
-\item For numeric focal predictors, if no representative values are specified,
-\code{length} and \code{range} control the number and type of representative values:
+\item For numeric focal predictors, if no representative values are specified
+(i.e., \code{by = "gear"} and \emph{not} \code{by = "gear = c(4, 8)"}), \code{length} and
+\code{range} control the number and type of representative values for the focal
+predictors:
 \itemize{
 \item \code{length} determines how many equally spaced values are generated.
 \item \code{range} specifies the type of values, like \code{"range"} or \code{"sd"}.
 \item \code{length} and \code{range} apply to all numeric focal predictors.
 \item If you have multiple numeric predictors, \code{length} and \code{range} can accept
-multiple elements, one for each predictor.
+multiple elements, one for each predictor (see 'Examples').
 }
 \item For integer variables, only values that appear in the data will be included
 in the data grid, independent from the \code{length} argument. This behaviour
@@ -456,9 +497,11 @@ averaging across random effects groups is then more accurate.
 }
 
 \examples{
-\dontshow{if (all(insight::check_if_installed(c("lme4", "marginaleffects", "rstanarm"), quietly = TRUE))) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+\dontshow{if (all(insight::check_if_installed(c("lme4", "marginaleffects", "parameters", "rstanarm"), quietly = TRUE))) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 \dontrun{
-# Basic usage
+# Basic usage --------------------------------
+# --------------------------------------------
+
 model <- lm(Sepal.Width ~ Species, data = iris)
 estimate_contrasts(model)
 
@@ -484,14 +527,50 @@ estimate_contrasts(model, by = "Petal.Width", length = 4)
 estimated <- estimate_contrasts(lm(Sepal.Width ~ Species, data = iris))
 standardize(estimated)
 
+# contrasts of slopes ------------------------
+# --------------------------------------------
+
+data(qol_cancer, package = "parameters")
+qol_cancer$ID <- as.numeric(qol_cancer$ID)
+qol_cancer$grp <- as.factor(ifelse(qol_cancer$ID < 100, "Group 1", "Group 2"))
+model <- lm(QoL ~ time * education * grp, data = qol_cancer)
+
+# "time" only has integer values and few values, so it's treated like a factor
+estimate_contrasts(model, "time", by = "education")
+
+# we set `integer_as_continuous = TRUE` to treat integer as continuous
+estimate_contrasts(model, "time", by = "education", integer_as_continuous = 1)
+
+# pairwise comparisons for multiple groups
+estimate_contrasts(
+  model,
+  "time",
+  by = c("education", "grp"),
+  integer_as_continuous = TRUE
+)
+
+# if we want pairwise comparisons only for one factor, but group by another,
+# we need the formula specification and define the grouping variable after
+# the vertical bar
+estimate_contrasts(
+  model,
+  "time",
+  by = c("education", "grp"),
+  comparison = ~pairwise | grp,
+  integer_as_continuous = TRUE
+)
+
 # custom factor contrasts - contrasts the average effects of two levels
 # against the remaining third level
+# ---------------------------------------------------------------------
+
 data(puppy_love, package = "modelbased")
 cond_tx <- cbind("no treatment" = c(1, 0, 0), "treatment" = c(0, 0.5, 0.5))
 model <- lm(happiness ~ puppy_love * dose, data = puppy_love)
 estimate_slopes(model, "puppy_love", by = "dose", comparison = cond_tx)
 
-# Other models (mixed, Bayesian, ...)
+# Other models (mixed, Bayesian, ...) --------
+# --------------------------------------------
 data <- iris
 data$Petal.Length_factor <- ifelse(data$Petal.Length < 4.2, "A", "B")
 

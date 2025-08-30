@@ -66,10 +66,24 @@
 #'   target population?" This approach entails more assumptions about the
 #'   likelihood of different combinations, but can be more apt to generalize.
 #'   This is also the option that should be used for **G-computation**
-#'   (_Chatton and Rohrer 2024_).
+#'   (causal inference, see _Chatton and Rohrer 2024_). `"counterfactual"` is
+#'   an alias for `"population"`.
 #'
 #' You can set a default option for the `estimate` argument via `options()`,
-#' e.g. `options(modelbased_estimate = "average")`
+#' e.g. `options(modelbased_estimate = "average")`.
+#'
+#' Note following limitations:
+#' - When you set `estimate` to `"average"`, it calculates the average based
+#'   only on the data points that actually exist. This is in particular
+#'   important for two or more focal predictors, because it doesn't generate a
+#'   *complete* grid of all theoretical combinations of predictor values.
+#'   Consequently, the output may not include all the values.
+#' - Filtering the output at values of continuous predictors, e.g.
+#'   `by = "x=1:5"`, in combination with `estimate = "average"` may result in
+#'   returning an empty data frame because of what was described above. In such
+#'   case, you can use `estimate = "typical"` or use the `newdata` argument to
+#'   provide a data grid of predictor values at which to evaluate predictions.
+#' - `estimate = "population"` is not available for `estimate_slopes()`.
 #' @param backend Whether to use `"marginaleffects"` (default) or `"emmeans"` as
 #' a backend. Results are usually very similar. The major difference will be
 #' found for mixed models, where `backend = "marginaleffects"` will also average
@@ -123,13 +137,13 @@
 #'   `describe_posterior()`, thus, arguments like, for example, `centrality`,
 #'   `rope_range`, or `test` are passed to that function.
 #' - Especially for `estimate_contrasts()` with integer focal predictors, for
-#'   which contrasts should be calculated, use argument `integer_as_numeric` to
-#'   set the maximum number of unique values in an integer predictor to treat
+#'   which contrasts should be calculated, use argument `integer_as_continuous`
+#'   to set the maximum number of unique values in an integer predictor to treat
 #'   that predictor as "discrete integer" or as numeric. For the first case,
 #'   contrasts are calculated between values of the predictor, for the latter,
 #'   contrasts of slopes are calculated. If the integer has more than
-#'   `integer_as_numeric` unique values, it is treated as numeric. Defaults to
-#'   `5`.
+#'   `integer_as_continuous` unique values, it is treated as numeric. Defaults
+#'   to `5`. Set to `TRUE` to always treat integer predictors as continuous.
 #' - For count regression models that use an offset term, use `offset = <value>`
 #'   to fix the offset at a specific value. Or use `estimate = "average"`, to
 #'   average predictions over the distribution of the offset (if appropriate).
@@ -146,40 +160,42 @@
 #' [emmeans::emtrends()] or this [website](https://marginaleffects.com/)) is
 #' recommended to understand the idea behind these types of procedures.
 #'
-#' - Model-based **predictions** is the basis for all that follows. Indeed,
-#' the first thing to understand is how models can be used to make predictions
-#' (see [estimate_link()]). This corresponds to the predicted response (or
-#' "outcome variable") given specific predictor values of the predictors (i.e.,
-#' given a specific data configuration). This is why the concept of [`reference
-#' grid()`][insight::get_datagrid()] is so important for direct predictions.
+#' - Model-based **predictions** is the basis for all that follows. Indeed, the
+#'   first thing to understand is how models can be used to make predictions
+#'   (see [estimate_relation()]). This corresponds to the predicted response (or
+#'   "outcome variable") given specific predictor values of the predictors
+#'   (i.e., given a specific data configuration). This is why the concept of
+#'   the [reference grid][insight::get_datagrid()] is so important for direct
+#'   predictions.
 #'
-#' - **Marginal "means"**, obtained via [estimate_means()], are an extension
-#' of such predictions, allowing to "average" (collapse) some of the predictors,
-#' to obtain the average response value at a specific predictors configuration.
-#' This is typically used when some of the predictors of interest are factors.
-#' Indeed, the parameters of the model will usually give you the intercept value
-#' and then the "effect" of each factor level (how different it is from the
-#' intercept). Marginal means can be used to directly give you the mean value of
-#' the response variable at all the levels of a factor. Moreover, it can also be
-#' used to control, or average over predictors, which is useful in the case of
-#' multiple predictors with or without interactions.
+#' - **Marginal "means"**, obtained via [estimate_means()], are an extension of
+#'   such predictions, allowing to "average" (collapse) some of the predictors,
+#'   to obtain the average response value at a specific predictors
+#'   configuration. This is typically used when some of the predictors of
+#'   interest are factors. Indeed, the parameters of the model will usually give
+#'   you the intercept value and then the "effect" of each factor level (how
+#'   different it is from the intercept). Marginal means can be used to directly
+#'   give you the mean value of the response variable at all the levels of a
+#'   factor. Moreover, it can also be used to control, or average over
+#'   predictors, which is useful in the case of multiple predictors with or
+#'   without interactions.
 #'
-#' - **Marginal contrasts**, obtained via [estimate_contrasts()], are
-#' themselves at extension of marginal means, in that they allow to investigate
-#' the difference (i.e., the contrast) between the marginal means. This is,
-#' again, often used to get all pairwise differences between all levels of a
-#' factor. It works also for continuous predictors, for instance one could also
-#' be interested in whether the difference at two extremes of a continuous
-#' predictor is significant.
+#' - **Marginal contrasts**, obtained via [estimate_contrasts()], are themselves
+#'   at extension of marginal means, in that they allow to investigate the
+#'   difference (i.e., the contrast) between the marginal means. This is, again,
+#'   often used to get all pairwise differences between all levels of a factor.
+#'   It works also for continuous predictors, for instance one could also be
+#'   interested in whether the difference at two extremes of a continuous
+#'   predictor is significant.
 #'
 #' - Finally, **marginal effects**, obtained via [estimate_slopes()], are
-#' different in that their focus is not values on the response variable, but the
-#' model's parameters. The idea is to assess the effect of a predictor at a
-#' specific configuration of the other predictors. This is relevant in the case
-#' of interactions or non-linear relationships, when the effect of a predictor
-#' variable changes depending on the other predictors. Moreover, these effects
-#' can also be "averaged" over other predictors, to get for instance the
-#' "general trend" of a predictor over different factor levels.
+#'   different in that their focus is not values on the response variable, but
+#'   the model's parameters. The idea is to assess the effect of a predictor at
+#'   a specific configuration of the other predictors. This is relevant in the
+#'   case of interactions or non-linear relationships, when the effect of a
+#'   predictor variable changes depending on the other predictors. Moreover,
+#'   these effects can also be "averaged" over other predictors, to get for
+#'   instance the "general trend" of a predictor over different factor levels.
 #'
 #' **Example:** Let's imagine the following model `lm(y ~ condition * x)` where
 #' `condition` is a factor with 3 levels A, B and C and `x` a continuous
@@ -207,13 +223,15 @@
 #'     or `by = list(Species = c('setosa', 'virginica'))`
 #' * You can use "shortcuts" within square brackets, such as `by = "Sepal.Width = [sd]"`
 #'   or `by = "Sepal.Width = [fivenum]"`
-#' * For numeric focal predictors, if no representative values are specified,
-#'   `length` and `range` control the number and type of representative values:
+#' * For numeric focal predictors, if no representative values are specified
+#'   (i.e., `by = "gear"` and *not* `by = "gear = c(4, 8)"`), `length` and
+#'   `range` control the number and type of representative values for the focal
+#'   predictors:
 #'   * `length` determines how many equally spaced values are generated.
 #'   * `range` specifies the type of values, like `"range"` or `"sd"`.
 #'   * `length` and `range` apply to all numeric focal predictors.
 #'   * If you have multiple numeric predictors, `length` and `range` can accept
-#'     multiple elements, one for each predictor.
+#'     multiple elements, one for each predictor (see 'Examples').
 #' * For integer variables, only values that appear in the data will be included
 #'   in the data grid, independent from the `length` argument. This behaviour
 #'   can be changed by setting `protect_integers = FALSE`, which will then treat
@@ -264,11 +282,17 @@
 #'
 #' - `modelbased_backend`: `options(modelbased_backend = <string>)` will set a
 #'   default value for the `backend` argument and can be used to set the package
-#'   used by default to calculate marginal means. Can be `"marginalmeans"` or
+#'   used by default to calculate marginal means. Can be `"marginaleffects"` or
 #'   `"emmeans"`.
 #'
 #' - `modelbased_estimate`: `options(modelbased_estimate = <string>)` will
 #'   set a default value for the `estimate` argument.
+#'
+#' - `modelbased_integer`: `options(modelbased_integer = <value>)` will set the
+#'   minimum number of unique values in an integer predictor to treat that
+#'   predictor as a "discrete integer" or as continuous. If the integer has more than
+#'   `modelbased_integer` unique values, it is treated as continuous. Set to `TRUE`
+#'   to always treat integer predictors as continuous.
 #'
 #' @return A data frame of estimated marginal means.
 #'
@@ -368,18 +392,12 @@ estimate_means <- function(model,
   # --------------------------------------------------------------------------
 
   # set defaults
-  if (is.null(estimate)) {
-    estimate <- getOption("modelbased_estimate", "typical")
-  }
   if (is.null(backend)) {
     backend <- getOption("modelbased_backend", "marginaleffects")
   }
 
   # validate input
-  estimate <- insight::validate_argument(
-    estimate,
-    c("typical", "population", "specific", "average")
-  )
+  estimate <- .validate_estimate_arg(estimate)
 
   if (backend == "emmeans") {
     # Emmeans ----------------------------------------------------------------
