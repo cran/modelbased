@@ -1,11 +1,14 @@
 # Format ------------------------------------------------------------------
 
+#' @rdname print.estimate_contrasts
 #' @export
-format.estimate_contrasts <- function(x,
-                                      format = NULL,
-                                      select = getOption("modelbased_select", NULL),
-                                      include_grid = getOption("modelbased_include_grid", FALSE),
-                                      ...) {
+format.estimate_contrasts <- function(
+  x,
+  format = NULL,
+  select = getOption("modelbased_select", NULL),
+  include_grid = getOption("modelbased_include_grid", FALSE),
+  ...
+) {
   # for joint test, no select and include_grid options
   if (isTRUE(attributes(x)$joint_test)) {
     select <- NULL
@@ -140,7 +143,7 @@ format.marginaleffects_means <- function(x, model, ci = 0.95, ...) {
   is_contrast_analysis <- !is.null(comparison)
 
   # define all columns that should be removed
-  remove_columns <- c("s.value", "S", "CI", "rowid_dedup", non_focal)
+  remove_columns <- c("s.value", "S", "CI", "rowid_dedup", non_focal, equivalence_columns)
 
   # do we have contrasts? For contrasts, we want to keep p-values
   if (.is_inequality_comparison(comparison)) {
@@ -187,7 +190,7 @@ format.marginaleffects_slopes <- function(x, model, ci = 0.95, ...) {
   }
   model_data <- insight::get_data(model, verbose = FALSE)
   # define all columns that should be removed
-  remove_columns <- c("Predicted", "s.value", "S", "CI", "rowid_dedup")
+  remove_columns <- c("Predicted", "s.value", "S", "CI", "rowid_dedup", equivalence_columns)
   # for contrasting slope, we need to keep the "Parameter" column
   # however, for estimating trends/slope, the "Parameter" column is usually
   # redundant. Since we cannot check for class-attributes, we simply check if
@@ -219,7 +222,13 @@ format.marginaleffects_slopes <- function(x, model, ci = 0.95, ...) {
 
 
 #' @export
-format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, comparison = NULL, ...) {
+format.marginaleffects_contrasts <- function(
+  x,
+  model = NULL,
+  p_adjust = NULL,
+  comparison = NULL,
+  ...
+) {
   predict <- attributes(x)$predict
   by <- attributes(x)$by
   contrast <- attributes(x)$contrast
@@ -256,7 +265,8 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
   }
 
   # check type of contrast
-  is_ratio_comparison <- inherits(comparison, "formula") && identical(deparse(comparison[[2]]), "ratio")
+  is_ratio_comparison <- inherits(comparison, "formula") &&
+    identical(deparse(comparison[[2]]), "ratio")
 
   # Column name for coefficient - fix needed for contrasting slopes and ratios
   colnames(x)[colnames(x) == "Slope"] <- "Difference"
@@ -273,7 +283,7 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
   # cleaning, so we skip here, too
 
   if (!is.null(comparison) && !.is_inequality_comparison(comparison)) {
-    #  the goal here is to create tidy columns with the comparisons.
+    # the goal here is to create tidy columns with the comparisons.
     # marginaleffects returns a single column that contains all levels that
     # are contrasted. We want to have the contrasted levels per predictor in
     # a separate column. This is what we do here...
@@ -301,7 +311,7 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
     # for contrasts, we also filter variables with one unique value, but we
     # keep numeric variables. When these are hold constant in the data grid,
     # they are set to their mean value - meaning, they only have one unique
-    # value in the data grid, anyway. so we need to keep them
+    # value in the data grid, anyway. so we need to keep them.
     keep_contrasts <- lengths(lapply(dgrid[contrast], unique)) > 1 |
       vapply(dgrid[contrast], is.numeric, logical(1)) # nolint
     contrast <- contrast[keep_contrasts]
@@ -352,7 +362,10 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
       # appear as a single level in the data. thus, we use a sequence of "~"
       # characters, which are unlikely to appear in the data
       for (i in seq_along(all_levels)) {
-        replace_levels <- c(replace_levels, paste0("#", paste(rep_len("~", i), collapse = ""), "#"))
+        replace_levels <- c(
+          replace_levels,
+          paste0("#", paste(rep_len("~", i), collapse = ""), "#")
+        )
       }
       for (i in seq_along(all_num_levels)) {
         replace_num_levels <- c(
@@ -391,7 +404,12 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
       # finally, replace all tokens with original comparison levels again
       params[] <- lapply(params, function(comparison_pair) {
         for (j in seq_along(all_levels)) {
-          comparison_pair <- sub(replace_levels[j], all_levels[j], comparison_pair, fixed = TRUE)
+          comparison_pair <- sub(
+            replace_levels[j],
+            all_levels[j],
+            comparison_pair,
+            fixed = TRUE
+          )
         }
         for (j in seq_along(all_num_levels)) {
           comparison_pair <- sub(
@@ -523,6 +541,13 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
 }
 
 
+# fmt: skip
+equivalence_columns <- c(
+  "statistic.noninf", "statistic.nonsup", "p.value.noninf", "p.value.nonsup",
+  "p_Nonsuperiority", "p_Noninferiority"
+)
+
+
 # This function renames columns to have a consistent naming scheme,
 # and relocates columns to get a standardized column order across all
 # outputs from {marginaleffects}
@@ -573,12 +598,13 @@ format.marginaleffects_contrasts <- function(x, model = NULL, p_adjust = NULL, c
   # add back ci? these are missing when contrasts are computed
   params <- .add_contrasts_ci(is_contrast_analysis, params)
 
+  # fmt: skip
   # relocate columns - this is the standardized column order for all outputs
   relocate_columns <- intersect(
     unique(c(
       coefficient_name, "Coefficient", "Slope", "Predicted", "Median", "Mean",
       "MAP", "SE", "CI_low", "CI_high", "Statistic", "df", "df_error", "pd",
-      "ps", "ROPE_low", "ROPE_high", "ROPE_Percentage", "p"
+      "ps", "ROPE_low", "ROPE_high", "ROPE_Percentage", "p", "p_Equivalence"
     )),
     colnames(params)
   )

@@ -1,3 +1,24 @@
+# modelbased 0.13.1
+
+## Changes
+
+* The `type` argument in `estimate_grouplevel()` gains a `"marginal"` option,
+  to return marginal group-levels estimates.
+
+* Added an `as.data.frame()` method for *modelbased* objects.
+
+* Better formatting of the output for equivalence-tests, when the `equivalence`
+  argument was used. Related docs were added. It is also possible to use
+  `parameters::equivalence_test()` on *modelbased* objects.
+
+* Function calls are now saved as `call` attribute in *modelbased* objects.
+
+* More informative warnings and error messages were added to `estimate_contrasts()`
+  when computing effect sizes.
+
+* Improved plotting methods for the *tinyplot* package. The related vignette
+  was also updated.
+
 # modelbased 0.13.0
 
 ## Changes

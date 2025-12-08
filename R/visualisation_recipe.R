@@ -45,7 +45,7 @@
 #' @param point,line,pointrange,ribbon,facet,grid Additional
 #' aesthetics and parameters for the geoms (see customization example).
 #' @param ... Arguments passed from `plot()` to `visualisation_recipe()`, or
-#' to `tinyplot()` and `tinytheme()` if you use that method.
+#' to `tinyplot()` if you use that method.
 #'
 #' @details There are two options to remove the confidence bands or errors bars
 #' from the plot. To remove error bars, simply set the `pointrange` geom to
@@ -69,6 +69,10 @@
 #' - `modelbased_ribbon_alpha`: `options(modelbased_ribbon_alpha = <number>)`
 #'   will set a default value for the `alpha` argument of the `ribbon` geom.
 #'   Should be a number between `0` and `1`.
+#'
+#' - `modelbased_tinyplot_dodge`: `options(modelbased_tinyplot_dodge = <number>)`
+#'   will set a default value for the `dodge` argument (spacing between geoms)
+#'   when using `tinyplot::plt()`. Should be a number between `0` and `1`.
 #'
 #' @examplesIf all(insight::check_if_installed(c("marginaleffects", "see", "ggplot2"), quietly = TRUE)) && getRversion() >= "4.1.0"
 #' library(ggplot2)

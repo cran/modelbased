@@ -64,12 +64,11 @@ get_marginalcontrasts <- function(
   }
 
   # sanity check: `contrast` and `by` cannot be the same
-  cleaned_by <- gsub("=.*", "\\1", my_args$by)
-  cleaned_contrast <- gsub("=.*", "\\1", my_args$contrast)
   if (
-    length(cleaned_by) &&
-      length(cleaned_contrast) &&
-      (all(cleaned_by %in% cleaned_contrast) || all(cleaned_contrast %in% cleaned_by))
+    length(my_args$cleaned_by) &&
+      length(my_args$cleaned_contrast) &&
+      (all(my_args$cleaned_by %in% my_args$cleaned_contrast) ||
+        all(my_args$cleaned_contrast %in% my_args$cleaned_by))
   ) {
     insight::format_error(
       "You cannot specifiy the same variables in `contrast` and `by`. Either omit `by`, or choose a different variable for `contrast` or `by`." # nolint
@@ -105,7 +104,9 @@ get_marginalcontrasts <- function(
   } else if (compute_slopes) {
     # sanity check - contrast for slopes only makes sense when we have a "by" argument
     if (is.null(my_args$by)) {
-      insight::format_error("Please specify the `by` argument to calculate contrasts of slopes.") # nolint
+      insight::format_error(
+        "Please specify the `by` argument to calculate contrasts of slopes."
+      )
     }
     # call slopes with hypothesis argument
     out <- estimate_slopes(
@@ -382,7 +383,7 @@ get_marginalcontrasts <- function(
     }
   }
 
-  c(
+  out <- c(
     # the "my_args" argument, containing "by" and "contrast"
     my_args,
     list(
@@ -394,9 +395,22 @@ get_marginalcontrasts <- function(
       by_filter = insight::compact_list(by_filter),
       contrast_filter = insight::compact_list(contrast_filter),
       # in case we have a joint/omnibus test
-      joint_test = joint_test
+      joint_test = joint_test,
+      # cleaned `by` and `contrast`, without filtering information
+      cleaned_by = gsub("=.*", "\\1", my_args$by),
+      cleaned_contrast = gsub("=.*", "\\1", my_args$contrast)
     )
   )
+
+  # clean empty values
+  if (!length(out$cleaned_by)) {
+    out$cleaned_by <- NULL
+  }
+  if (!length(out$cleaned_contrast)) {
+    out$cleaned_contrast <- NULL
+  }
+
+  out
 }
 
 
@@ -444,10 +458,7 @@ get_marginalcontrasts <- function(
   # this is the row-order we use in modelbased
   datagrid$.rowid <- 1:nrow(datagrid)
   # this is the row-order in marginaleffects
-  datagrid <- datawizard::data_arrange(
-    datagrid,
-    colnames(datagrid)[1:(length(datagrid) - 1)]
-  )
+  datagrid <- datawizard::data_arrange(datagrid, colnames(datagrid)[1:(length(datagrid) - 1)])
   # we need to extract all b's and the former parameter numbers
   b <- .extract_custom_comparison(comparison)
   old_b_numbers <- as.numeric(gsub("b", "", b, fixed = TRUE))
