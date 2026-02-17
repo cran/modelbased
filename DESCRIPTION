@@ -1,7 +1,7 @@
 Type: Package
 Package: modelbased
 Title: Estimation of Model-Based Predictions, Contrasts and Means
-Version: 0.13.1
+Version: 0.14.0
 Authors@R: 
     c(person(given = "Dominique",
              family = "Makowski",
@@ -38,7 +38,7 @@ URL: https://easystats.github.io/modelbased/
 BugReports: https://github.com/easystats/modelbased/issues
 Depends: R (>= 4.0)
 Imports: bayestestR (>= 0.17.0), datawizard (>= 1.3.0), insight (>=
-        1.4.3), parameters (>= 0.28.3), graphics, stats, tools, utils
+        1.4.4), parameters (>= 0.28.3), graphics, stats, tools, utils
 Suggests: afex, BH, betareg, boot, bootES, brglm2, brms, coda,
         collapse, correlation, coxme, curl, discovr, easystats,
         effectsize (>= 1.0.0), emmeans (>= 1.10.2), Formula, gamm4,
@@ -60,7 +60,7 @@ Config/Needs/check: stan-dev/cmdstanr
 Config/Needs/website: easystats/easystatstemplate
 LazyData: true
 NeedsCompilation: no
-Packaged: 2025-12-08 15:18:34 UTC; mail
+Packaged: 2026-02-17 12:50:51 UTC; mail
 Author: Dominique Makowski [aut, cre] (ORCID:
     <https://orcid.org/0000-0001-5375-9967>),
   Daniel Lüdecke [aut] (ORCID: <https://orcid.org/0000-0002-8895-3206>),
@@ -69,4 +69,4 @@ Author: Dominique Makowski [aut, cre] (ORCID:
   Indrajeet Patil [aut] (ORCID: <https://orcid.org/0000-0003-1995-6531>),
   Rémi Thériault [aut] (ORCID: <https://orcid.org/0000-0003-4315-6788>)
 Repository: CRAN
-Date/Publication: 2025-12-08 16:00:02 UTC
+Date/Publication: 2026-02-17 14:00:02 UTC

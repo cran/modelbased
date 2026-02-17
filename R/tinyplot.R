@@ -49,6 +49,7 @@ tinyplot.estimate_means <- function(
   type = NULL,
   dodge = NULL,
   show_data = FALSE,
+  collapse_group = NULL,
   numeric_as_discrete = NULL,
   ...
 ) {
@@ -190,8 +191,12 @@ tinyplot.estimate_means <- function(
 
   if (show_data) {
     # extract raw data from the model
-    model <- attributes(x)$model
-    rawdata <- as.data.frame(insight::get_data(model, verbose = FALSE))
+    model <- insight::get_model(x)
+    if (is.null(collapse_group)) {
+      rawdata <- as.data.frame(insight::get_data(model, verbose = FALSE))
+    } else {
+      rawdata <- collapse_by_group(x, model, collapse_by = collapse_group)
+    }
 
     # set alpha
     if (is.null(dots$alpha)) {
